@@ -1,6 +1,6 @@
 generator client {
   provider = "prisma-client-js"
-  output = "./generated/prisma"
+  output   = "./generated/prisma"
 }
 
 datasource db {
@@ -29,26 +29,26 @@ model User {
 
   // User fields
   names               String
-  lastNames           String      @map("last_names")
-  email               String      @unique
+  lastNames           String     @map("last_names")
+  email               String     @unique
   phone               String?
-  username            String      @unique
+  username            String     @unique
   password            String
-  ci                  String      @unique
+  ci                  String     @unique
   image               String?
-  address             String?     @db.Text
-  status              UserStatus  @default(ACTIVE)
-  failedLoginAttempts Int         @default(0) @map("failed_login_attempts")
-  lockUntil           DateTime?   @map("lock_until")
+  address             String?    @db.Text
+  status              UserStatus @default(ACTIVE)
+  failedLoginAttempts Int        @default(0) @map("failed_login_attempts")
+  lockUntil           DateTime?  @map("lock_until")
 
   // Relations
-  roles           Role[]       @relation("UserRoles")
-  sessions        Session[]
-  otps            Otp[]
-  managedAudits   Audit[]      @relation("ManagedAudits")
-  clientAudits    Audit[]      @relation("ClientAudits")
-  auditorAudits   Audit[]      @relation("AuditAuditors")
-  evaluations     Evaluation[]
+  roles         Role[]       @relation("UserRoles")
+  sessions      Session[]
+  otps          Otp[]
+  managedAudits Audit[]      @relation("ManagedAudits")
+  clientAudits  Audit[]      @relation("ClientAudits")
+  auditorAudits Audit[]      @relation("AuditAuditors")
+  evaluations   Evaluation[]
 
   @@map("users")
 }
@@ -97,13 +97,13 @@ model Otp {
   deletedAt DateTime? @map("deleted_at")
 
   // OTP fields
-  userId    String   @map("user_id")
-  code      String   @db.VarChar(10)
+  userId    String    @map("user_id")
+  code      String    @db.VarChar(10)
   type      OtpType
-  expiresAt DateTime @map("expires_at")
-  isUsed    Boolean  @default(false) @map("is_used")
+  expiresAt DateTime  @map("expires_at")
+  isUsed    Boolean   @default(false) @map("is_used")
   usedAt    DateTime? @map("used_at")
-  attempts  Int      @default(0)
+  attempts  Int       @default(0)
 
   // Relations
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
