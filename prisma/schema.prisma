@@ -1,0 +1,152 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ===== ENUMS =====
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum OtpType {
+  EMAIL_VERIFICATION
+  PASSWORD_RESET
+  TWO_FACTOR
+}
+
+// ===== MODELS =====
+
+model User {
+  id        String    @id @default(uuid())
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  // User fields
+  names               String
+  lastNames           String      @map("last_names")
+  email               String      @unique
+  phone               String?
+  username            String      @unique
+  password            String
+  ci                  String      @unique
+  image               String?
+  address             String?     @db.Text
+  status              UserStatus  @default(ACTIVE)
+  failedLoginAttempts Int         @default(0) @map("failed_login_attempts")
+  lockUntil           DateTime?   @map("lock_until")
+
+  // Relations
+  roles           Role[]       @relation("UserRoles")
+  sessions        Session[]
+  otps            Otp[]
+  managedAudits   Audit[]      @relation("ManagedAudits")
+  clientAudits    Audit[]      @relation("ClientAudits")
+  auditorAudits   Audit[]      @relation("AuditAuditors")
+  evaluations     Evaluation[]
+
+  @@map("users")
+}
+
+model Role {
+  id        String    @id @default(uuid())
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  // Role fields
+  name        String  @unique
+  description String? @db.Text
+
+  // Relations
+  users User[] @relation("UserRoles")
+
+  @@map("roles")
+}
+
+model Session {
+  id        String    @id @default(uuid())
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  // Session fields
+  userId       String    @map("user_id")
+  refreshToken String    @map("refresh_token") @db.Text
+  expiresAt    DateTime  @map("expires_at")
+  ipAddress    String?   @map("ip_address")
+  userAgent    String?   @map("user_agent")
+  isActive     Boolean   @default(true) @map("is_active")
+  lastUsedAt   DateTime? @map("last_used_at")
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model Otp {
+  id        String    @id @default(uuid())
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  // OTP fields
+  userId    String   @map("user_id")
+  code      String   @db.VarChar(10)
+  type      OtpType
+  expiresAt DateTime @map("expires_at")
+  isUsed    Boolean  @default(false) @map("is_used")
+  usedAt    DateTime? @map("used_at")
+  attempts  Int      @default(0)
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("otps")
+}
+
+model Audit {
+  id        String    @id @default(uuid())
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  // Audit fields
+  title       String
+  description String? @db.Text
+  managerId   String  @map("manager_id")
+  clientId    String  @map("client_id")
+
+  // Relations
+  manager  User   @relation("ManagedAudits", fields: [managerId], references: [id])
+  client   User   @relation("ClientAudits", fields: [clientId], references: [id])
+  auditors User[] @relation("AuditAuditors")
+
+  @@map("audits")
+}
+
+model Evaluation {
+  id        String    @id @default(uuid())
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  // Evaluation fields
+  title       String
+  description String? @db.Text
+  userId      String  @map("user_id")
+
+  // Relations
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("evaluations")
+}

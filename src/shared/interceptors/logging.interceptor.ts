@@ -1,0 +1,57 @@
+import {
+  Injectable,
+  NestInterceptor,
+  ExecutionContext,
+  CallHandler,
+} from '@nestjs/common'
+import { Observable } from 'rxjs'
+import { tap } from 'rxjs/operators'
+import { Request, Response } from 'express'
+import { LoggerService } from '../logger/logger.service'
+
+@Injectable()
+export class LoggingInterceptor implements NestInterceptor {
+  constructor(private readonly logger: LoggerService) {}
+
+  intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
+    const ctx = context.switchToHttp()
+    const request = ctx.getRequest<Request>()
+    const response = ctx.getResponse<Response>()
+    const startTime = Date.now()
+
+    // Obtener información del usuario si está autenticado
+    const user = (request as any).user
+    const userContext = user
+      ? {
+          userId: user.id,
+          userEmail: user.email,
+        }
+      : {}
+
+    // Log del request
+    this.logger.logHttpRequest(request, userContext)
+
+    return next.handle().pipe(
+      tap({
+        next: () => {
+          const responseTime = Date.now() - startTime
+
+          // Log del response exitoso
+          this.logger.logHttpResponse(request, response, responseTime, userContext)
+        },
+        error: (error) => {
+          const responseTime = Date.now() - startTime
+
+          // Log del response con error
+          this.logger.logHttpResponse(request, response, responseTime, {
+            ...userContext,
+            error: {
+              name: error.name,
+              message: error.message,
+            },
+          })
+        },
+      })
+    )
+  }
+}
