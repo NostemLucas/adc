@@ -4,7 +4,6 @@ import {
   Body,
   HttpCode,
   HttpStatus,
-  UseGuards,
   Req,
   Ip,
 } from '@nestjs/common'
@@ -15,6 +14,7 @@ import {
   ApiBearerAuth,
   ApiBody,
 } from '@nestjs/swagger'
+import { ApiUnauthorizedResponse, ApiForbiddenResponse } from '@shared/swagger'
 import { AuthService } from './services/auth.service'
 import { LoginDto } from './dto/login.dto'
 import { RefreshTokenDto } from './dto/refresh-token.dto'
@@ -48,33 +48,11 @@ export class AuthController {
     description: 'Inicio de sesión exitoso',
     type: LoginResponseDto,
   })
-  @ApiResponse({
-    status: 401,
-    description: 'Credenciales inválidas',
-    schema: {
-      type: 'object',
-      properties: {
-        statusCode: { type: 'number', example: 401 },
-        message: { type: 'string', example: 'Credenciales inválidas' },
-        error: { type: 'string', example: 'Unauthorized' },
-      },
-    },
-  })
-  @ApiResponse({
-    status: 403,
-    description: 'Usuario bloqueado o inactivo',
-    schema: {
-      type: 'object',
-      properties: {
-        statusCode: { type: 'number', example: 403 },
-        message: {
-          type: 'string',
-          example: 'Usuario bloqueado. Intente nuevamente en 30 minutos',
-        },
-        error: { type: 'string', example: 'Forbidden' },
-      },
-    },
-  })
+  @ApiUnauthorizedResponse('Credenciales inválidas', 'Credenciales inválidas')
+  @ApiForbiddenResponse(
+    'Usuario bloqueado o inactivo',
+    'Usuario bloqueado. Intente nuevamente en 30 minutos',
+  )
   async login(
     @Body() loginDto: LoginDto,
     @Req() req: Request,
@@ -103,18 +81,10 @@ export class AuthController {
     description: 'Tokens actualizados exitosamente',
     type: AuthTokensDto,
   })
-  @ApiResponse({
-    status: 401,
-    description: 'Token de actualización inválido o expirado',
-    schema: {
-      type: 'object',
-      properties: {
-        statusCode: { type: 'number', example: 401 },
-        message: { type: 'string', example: 'Token inválido o expirado' },
-        error: { type: 'string', example: 'Unauthorized' },
-      },
-    },
-  })
+  @ApiUnauthorizedResponse(
+    'Token de actualización inválido o expirado',
+    'Token inválido o expirado',
+  )
   async refresh(@Body() refreshTokenDto: RefreshTokenDto) {
     return this.authService.refreshTokens(refreshTokenDto.refreshToken)
   }
@@ -124,7 +94,8 @@ export class AuthController {
   @ApiBearerAuth('JWT-auth')
   @ApiOperation({
     summary: 'Cerrar sesión',
-    description: 'Invalida el refresh token actual y cierra la sesión del usuario',
+    description:
+      'Invalida el refresh token actual y cierra la sesión del usuario',
   })
   @ApiBody({ type: RefreshTokenDto })
   @ApiResponse({
@@ -132,18 +103,7 @@ export class AuthController {
     description: 'Sesión cerrada exitosamente',
     type: MessageResponseDto,
   })
-  @ApiResponse({
-    status: 401,
-    description: 'No autorizado',
-    schema: {
-      type: 'object',
-      properties: {
-        statusCode: { type: 'number', example: 401 },
-        message: { type: 'string', example: 'No autorizado' },
-        error: { type: 'string', example: 'Unauthorized' },
-      },
-    },
-  })
+  @ApiUnauthorizedResponse()
   async logout(
     @CurrentUser() user: User,
     @Body() refreshTokenDto: RefreshTokenDto,
@@ -165,18 +125,7 @@ export class AuthController {
     description: 'Todas las sesiones cerradas exitosamente',
     type: MessageResponseDto,
   })
-  @ApiResponse({
-    status: 401,
-    description: 'No autorizado',
-    schema: {
-      type: 'object',
-      properties: {
-        statusCode: { type: 'number', example: 401 },
-        message: { type: 'string', example: 'No autorizado' },
-        error: { type: 'string', example: 'Unauthorized' },
-      },
-    },
-  })
+  @ApiUnauthorizedResponse()
   async logoutAll(@CurrentUser() user: User) {
     await this.authService.logoutAll(user.id)
     return { message: 'Todas las sesiones han sido cerradas' }
@@ -194,18 +143,7 @@ export class AuthController {
     description: 'Perfil del usuario obtenido exitosamente',
     type: UserProfileResponseDto,
   })
-  @ApiResponse({
-    status: 401,
-    description: 'No autorizado',
-    schema: {
-      type: 'object',
-      properties: {
-        statusCode: { type: 'number', example: 401 },
-        message: { type: 'string', example: 'No autorizado' },
-        error: { type: 'string', example: 'Unauthorized' },
-      },
-    },
-  })
+  @ApiUnauthorizedResponse()
   async getProfile(@CurrentUser() user: User) {
     return {
       id: user.id,

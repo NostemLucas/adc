@@ -1,18 +1,20 @@
 import { Injectable } from '@nestjs/common'
 import { User as PrismaUser, Role as PrismaRole } from '@prisma/client'
-import { PrismaService } from '@shared/database/prisma.service'
+import { BaseRepository, TransactionContext } from '@shared/database'
 import { User } from '../domain/user.entity'
 import { Role } from 'src/core/roles/domain/role.entity'
 
 type PrismaUserWithRoles = PrismaUser & { roles?: PrismaRole[] }
 
 /**
- * UserRepository - Simple e independiente
- * Sin BaseRepository, con control total
+ * UserRepository - Con soporte de transacciones mediante contexto CLS
+ * Extiende BaseRepository para participar automáticamente en transacciones
  */
 @Injectable()
-export class UserRepository {
-  constructor(private readonly prisma: PrismaService) {}
+export class UserRepository extends BaseRepository {
+  constructor(transactionContext: TransactionContext) {
+    super(transactionContext)
+  }
 
   /**
    * Convierte Prisma User a Domain User

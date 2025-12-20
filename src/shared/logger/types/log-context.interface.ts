@@ -15,6 +15,7 @@ export interface HttpRequestContext {
   method: string
   url: string
   ip: string
+  contentType?: string
   query?: Record<string, unknown>
   params?: Record<string, unknown>
   body?: Record<string, unknown>

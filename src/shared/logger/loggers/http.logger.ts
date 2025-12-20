@@ -13,6 +13,7 @@ export class HttpLogger extends BaseLogger {
   logRequest(req: Request, user?: UserContext): void {
     const userAgent = req.headers['user-agent'] || 'Unknown'
     const device = UserAgentParser.parse(userAgent)
+    const contentType = req.headers['content-type'] || 'Not specified'
 
     const context: HttpLogContext = {
       user,
@@ -21,6 +22,7 @@ export class HttpLogger extends BaseLogger {
         method: req.method,
         url: req.url,
         ip: IpExtractor.extract(req),
+        contentType,
         query: req.query as Record<string, unknown>,
         params: req.params as Record<string, unknown>,
         body: req.body ? DataSanitizer.sanitize(req.body) : undefined,
