@@ -1,10 +1,18 @@
 import { Injectable } from '@nestjs/common'
-import { User as PrismaUser, Role as PrismaRole } from '@prisma/client'
+import {
+  User as PrismaUser,
+  Role as PrismaRole,
+  Permission as PrismaPermission,
+} from '@prisma/client'
 import { BaseRepository, TransactionContext } from '@shared/database'
 import { User } from '../domain/user.entity'
 import { Role } from 'src/core/roles/domain/role.entity'
+import { Permission } from 'src/core/permissions/domain/permission.entity'
 
-type PrismaUserWithRoles = PrismaUser & { roles?: PrismaRole[] }
+type PrismaRoleWithPermissions = PrismaRole & {
+  permissions?: PrismaPermission[]
+}
+type PrismaUserWithRoles = PrismaUser & { roles?: PrismaRoleWithPermissions[] }
 
 /**
  * UserRepository - Con soporte de transacciones mediante contexto CLS
@@ -46,6 +54,18 @@ export class UserRepository extends BaseRepository {
             deletedAt: role.deletedAt,
             name: role.name,
             description: role.description,
+            permissions:
+              role.permissions?.map((permission) =>
+                Permission.fromPersistence({
+                  id: permission.id,
+                  name: permission.name,
+                  resource: permission.resource,
+                  action: permission.action,
+                  description: permission.description,
+                  createdAt: permission.createdAt,
+                  updatedAt: permission.updatedAt,
+                }),
+              ) || [],
           }),
         ) || [],
     })
@@ -57,7 +77,13 @@ export class UserRepository extends BaseRepository {
   async findById(id: string): Promise<User | null> {
     const user = await this.prisma.user.findUnique({
       where: { id },
-      include: { roles: true },
+      include: {
+        roles: {
+          include: {
+            permissions: true,
+          },
+        },
+      },
     })
 
     return user ? this.toDomain(user) : null
@@ -69,7 +95,13 @@ export class UserRepository extends BaseRepository {
   async findByIdOrFail(id: string): Promise<User> {
     const user = await this.prisma.user.findUniqueOrThrow({
       where: { id },
-      include: { roles: true },
+      include: {
+        roles: {
+          include: {
+            permissions: true,
+          },
+        },
+      },
     })
 
     return this.toDomain(user)
@@ -83,7 +115,13 @@ export class UserRepository extends BaseRepository {
       where: {
         OR: [{ username }, { email: username }],
       },
-      include: { roles: true },
+      include: {
+        roles: {
+          include: {
+            permissions: true,
+          },
+        },
+      },
     })
 
     return user ? this.toDomain(user) : null
@@ -95,7 +133,13 @@ export class UserRepository extends BaseRepository {
   async findByEmail(email: string): Promise<User | null> {
     const user = await this.prisma.user.findUnique({
       where: { email },
-      include: { roles: true },
+      include: {
+        roles: {
+          include: {
+            permissions: true,
+          },
+        },
+      },
     })
 
     return user ? this.toDomain(user) : null
@@ -107,7 +151,13 @@ export class UserRepository extends BaseRepository {
   async findByUsername(username: string): Promise<User | null> {
     const user = await this.prisma.user.findUnique({
       where: { username },
-      include: { roles: true },
+      include: {
+        roles: {
+          include: {
+            permissions: true,
+          },
+        },
+      },
     })
 
     return user ? this.toDomain(user) : null
@@ -119,7 +169,13 @@ export class UserRepository extends BaseRepository {
   async findByCi(ci: string): Promise<User | null> {
     const user = await this.prisma.user.findUnique({
       where: { ci },
-      include: { roles: true },
+      include: {
+        roles: {
+          include: {
+            permissions: true,
+          },
+        },
+      },
     })
 
     return user ? this.toDomain(user) : null
@@ -147,7 +203,13 @@ export class UserRepository extends BaseRepository {
           connect: user.roles.map((role) => ({ id: role.id })),
         },
       },
-      include: { roles: true },
+      include: {
+        roles: {
+          include: {
+            permissions: true,
+          },
+        },
+      },
     })
 
     return this.toDomain(created)
@@ -176,7 +238,13 @@ export class UserRepository extends BaseRepository {
           set: user.roles.map((role) => ({ id: role.id })),
         },
       },
-      include: { roles: true },
+      include: {
+        roles: {
+          include: {
+            permissions: true,
+          },
+        },
+      },
     })
 
     return this.toDomain(updated)
@@ -212,7 +280,13 @@ export class UserRepository extends BaseRepository {
         status: 'ACTIVE',
         deletedAt: null,
       },
-      include: { roles: true },
+      include: {
+        roles: {
+          include: {
+            permissions: true,
+          },
+        },
+      },
     })
 
     return users.map((user) => this.toDomain(user))
@@ -228,7 +302,13 @@ export class UserRepository extends BaseRepository {
           some: { id: roleId },
         },
       },
-      include: { roles: true },
+      include: {
+        roles: {
+          include: {
+            permissions: true,
+          },
+        },
+      },
     })
 
     return users.map((user) => this.toDomain(user))

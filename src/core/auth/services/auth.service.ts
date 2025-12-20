@@ -6,11 +6,15 @@ import {
 import { JwtService } from '@nestjs/jwt'
 import { ConfigService } from '@nestjs/config'
 import * as bcrypt from 'bcrypt'
+import * as crypto from 'crypto'
 import { UserRepository } from 'src/core/users/infrastructure/user.repository'
 import { SessionRepository } from 'src/core/sessions/infrastructure/session.repository'
+import { OtpRepository } from '../infrastructure/otp.repository'
 import { User } from 'src/core/users/domain/user.entity'
 import { Session } from 'src/core/sessions/domain/session.entity'
+import { Otp } from '../domain/otp.entity'
 import { JwtPayload, TokenPair, LoginResponse } from '../interfaces/jwt-payload.interface'
+import { EmailService } from '@shared/email'
 
 /**
  * AuthService refactored to use Prisma repositories
@@ -21,8 +25,10 @@ export class AuthService {
   constructor(
     private readonly userRepository: UserRepository,
     private readonly sessionRepository: SessionRepository,
+    private readonly otpRepository: OtpRepository,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
+    private readonly emailService: EmailService,
   ) {}
 
   /**
@@ -220,5 +226,136 @@ export class AuthService {
    */
   async cleanupExpiredSessions(): Promise<void> {
     await this.sessionRepository.deleteExpiredSessions()
+  }
+
+  /**
+   * Inicia el proceso de recuperación de contraseña
+   * Envía un email con un link de reset
+   */
+  async forgotPassword(email: string): Promise<void> {
+    // Buscar usuario por email
+    const user = await this.userRepository.findByEmail(email)
+
+    // Por seguridad, no revelar si el email existe
+    if (!user) {
+      return
+    }
+
+    // Invalidar tokens de reset previos
+    await this.otpRepository.invalidateAllByUserAndType(user.id, 'PASSWORD_RESET')
+
+    // Generar token único y seguro
+    const resetToken = crypto.randomBytes(32).toString('hex')
+
+    // Crear OTP con expiración de 30 minutos
+    const expiresAt = new Date(Date.now() + 30 * 60 * 1000)
+    const otp = Otp.create({
+      userId: user.id,
+      code: resetToken,
+      type: 'PASSWORD_RESET',
+      expiresAt,
+    })
+
+    await this.otpRepository.create(otp)
+
+    // Crear link de reset
+    const frontendUrl = this.configService.get<string>('FRONTEND_URL')
+    const resetLink = `${frontendUrl}/reset-password?token=${resetToken}`
+
+    // Enviar email
+    await this.emailService.sendResetPasswordEmail({
+      to: user.email,
+      userName: user.fullName,
+      resetLink,
+      expiresInMinutes: 30,
+    })
+  }
+
+  /**
+   * Verifica el token de reset y cambia la contraseña
+   */
+  async resetPassword(token: string, newPassword: string): Promise<void> {
+    // Buscar token en BD
+    const otp = await this.otpRepository.findByCodeAndType(token, 'PASSWORD_RESET')
+
+    if (!otp || !otp.isValid) {
+      throw new UnauthorizedException('Token inválido o expirado')
+    }
+
+    // Obtener usuario
+    const user = await this.userRepository.findByIdOrFail(otp.userId)
+
+    // Hashear nueva contraseña
+    const hashedPassword = await bcrypt.hash(newPassword, 10)
+
+    // Actualizar contraseña del usuario
+    user.password = hashedPassword
+    await this.userRepository.save(user)
+
+    // Marcar token como usado
+    otp.markAsUsed()
+    await this.otpRepository.save(otp)
+
+    // Invalidar todas las sesiones del usuario por seguridad
+    await this.sessionRepository.invalidateAllByUserId(user.id)
+  }
+
+  /**
+   * Envía código de 2FA por email
+   */
+  async sendTwoFactorCode(userId: string): Promise<void> {
+    // Obtener usuario
+    const user = await this.userRepository.findByIdOrFail(userId)
+
+    // Invalidar códigos 2FA previos
+    await this.otpRepository.invalidateAllByUserAndType(user.id, 'TWO_FACTOR')
+
+    // Generar código de 6 dígitos
+    const code = Math.floor(100000 + Math.random() * 900000).toString()
+
+    // Crear OTP con expiración de 10 minutos
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000)
+    const otp = Otp.create({
+      userId: user.id,
+      code,
+      type: 'TWO_FACTOR',
+      expiresAt,
+    })
+
+    await this.otpRepository.create(otp)
+
+    // Enviar email
+    await this.emailService.sendTwoFactorCode({
+      to: user.email,
+      userName: user.fullName,
+      code,
+      expiresInMinutes: 10,
+    })
+  }
+
+  /**
+   * Verifica un código de 2FA
+   */
+  async verifyTwoFactorCode(userId: string, code: string): Promise<boolean> {
+    const otp = await this.otpRepository.findByCodeAndType(code, 'TWO_FACTOR')
+
+    if (!otp || otp.userId !== userId) {
+      return false
+    }
+
+    if (!otp.isValid) {
+      return false
+    }
+
+    // Verificar número máximo de intentos
+    if (otp.hasExceededMaxAttempts()) {
+      return false
+    }
+
+    // Marcar como usado
+    otp.markAsUsed()
+    await this.otpRepository.save(otp)
+
+    return true
   }
 }

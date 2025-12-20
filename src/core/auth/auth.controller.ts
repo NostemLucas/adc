@@ -18,6 +18,8 @@ import { ApiUnauthorizedResponse, ApiForbiddenResponse } from '@shared/swagger'
 import { AuthService } from './services/auth.service'
 import { LoginDto } from './dto/login.dto'
 import { RefreshTokenDto } from './dto/refresh-token.dto'
+import { ForgotPasswordDto } from './dto/forgot-password.dto'
+import { ResetPasswordDto } from './dto/reset-password.dto'
 import {
   LoginResponseDto,
   AuthTokensDto,
@@ -151,6 +153,54 @@ export class AuthController {
       email: user.email,
       fullName: user.fullName,
       roles: user.roles.map((role) => role.name),
+    }
+  }
+
+  @Public()
+  @Post('forgot-password')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Solicitar recuperación de contraseña',
+    description:
+      'Envía un email con un link para restablecer la contraseña. Por seguridad, siempre retorna éxito aunque el email no exista.',
+  })
+  @ApiBody({ type: ForgotPasswordDto })
+  @ApiResponse({
+    status: 200,
+    description: 'Email de recuperación enviado (si el email existe)',
+    type: MessageResponseDto,
+  })
+  async forgotPassword(@Body() dto: ForgotPasswordDto) {
+    await this.authService.forgotPassword(dto.email)
+    return {
+      message:
+        'Si el email existe en nuestro sistema, recibirás instrucciones para recuperar tu contraseña',
+    }
+  }
+
+  @Public()
+  @Post('reset-password')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Restablecer contraseña',
+    description:
+      'Restablece la contraseña usando el token recibido por email',
+  })
+  @ApiBody({ type: ResetPasswordDto })
+  @ApiResponse({
+    status: 200,
+    description: 'Contraseña restablecida exitosamente',
+    type: MessageResponseDto,
+  })
+  @ApiUnauthorizedResponse(
+    'Token inválido o expirado',
+    'El token de recuperación es inválido o ha expirado',
+  )
+  async resetPassword(@Body() dto: ResetPasswordDto) {
+    await this.authService.resetPassword(dto.token, dto.newPassword)
+    return {
+      message:
+        'Contraseña restablecida exitosamente. Puedes iniciar sesión con tu nueva contraseña',
     }
   }
 }

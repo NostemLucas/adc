@@ -1,4 +1,5 @@
 import { RoleType } from '../constants'
+import { Permission } from '../../permissions/domain/permission.entity'
 
 /**
  * Role Domain Entity - Pure domain logic without ORM decorators
@@ -13,6 +14,7 @@ export class Role {
   // Role fields
   name!: string
   description?: string | null
+  permissions!: Permission[]
 
   // Constructor privado para forzar uso de factory methods
   private constructor() {}
@@ -60,6 +62,7 @@ export class Role {
     deletedAt?: Date | null
     name: string
     description?: string | null
+    permissions?: Permission[]
   }): Role {
     const role = new Role()
 
@@ -69,6 +72,7 @@ export class Role {
     role.deletedAt = data.deletedAt || null
     role.name = data.name
     role.description = data.description || null
+    role.permissions = data.permissions || []
 
     return role
   }
