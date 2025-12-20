@@ -1,7 +1,20 @@
-import { ArgumentsHost, Catch, ExceptionFilter, HttpStatus } from '@nestjs/common'
+import {
+  ArgumentsHost,
+  Catch,
+  ExceptionFilter,
+  HttpStatus,
+} from '@nestjs/common'
 import { Request, Response } from 'express'
 import { Prisma } from '@prisma/client'
 import { LoggerService } from '../logger/logger.service'
+
+interface RequestWithUser extends Request {
+  user?: {
+    id: string
+    email: string
+    username?: string
+  }
+}
 
 /**
  * Global Exception Filter para errores de Prisma
@@ -11,27 +24,29 @@ import { LoggerService } from '../logger/logger.service'
 export class PrismaExceptionFilter implements ExceptionFilter {
   constructor(private readonly logger: LoggerService) {}
 
-  catch(exception: Prisma.PrismaClientKnownRequestError | Prisma.PrismaClientValidationError, host: ArgumentsHost) {
+  catch(
+    exception:
+      | Prisma.PrismaClientKnownRequestError
+      | Prisma.PrismaClientValidationError,
+    host: ArgumentsHost,
+  ): void {
     const ctx = host.switchToHttp()
-    const request = ctx.getRequest<Request>()
+    const request = ctx.getRequest<RequestWithUser>()
     const response = ctx.getResponse<Response>()
 
     // Obtener información del usuario si está autenticado
-    const user = (request as any).user
-    const userContext = user
+    const userContext = request.user
       ? {
-          userId: user.id,
-          userEmail: user.email,
+          userId: request.user.id,
+          userEmail: request.user.email,
+          userName: request.user.username,
         }
-      : {}
+      : undefined
 
     // Log del error de base de datos con contexto completo
     const operation = `${request.method} ${request.url}`
     this.logger.logDatabaseError(exception, operation, {
-      ...userContext,
-      method: request.method,
-      url: request.url,
-      ip: request.ip,
+      user: userContext,
     })
 
     let status = HttpStatus.INTERNAL_SERVER_ERROR
@@ -83,7 +98,8 @@ export class PrismaExceptionFilter implements ExceptionFilter {
         // Foreign key constraint violation
         return {
           status: HttpStatus.CONFLICT,
-          message: 'No se puede eliminar porque está relacionado con otros registros',
+          message:
+            'No se puede eliminar porque está relacionado con otros registros',
         }
       }
 

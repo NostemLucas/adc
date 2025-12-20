@@ -8,6 +8,20 @@ import {
 import { Request, Response } from 'express'
 import { LoggerService } from '../logger/logger.service'
 
+interface RequestWithUser extends Request {
+  user?: {
+    id: string
+    email: string
+    username?: string
+  }
+}
+
+interface HttpExceptionResponse {
+  statusCode?: number
+  message?: string | string[]
+  error?: string
+}
+
 /**
  * Global Exception Filter para todas las excepciones no manejadas
  * Registra todos los errores y devuelve respuestas consistentes
@@ -16,23 +30,23 @@ import { LoggerService } from '../logger/logger.service'
 export class AllExceptionsFilter implements ExceptionFilter {
   constructor(private readonly logger: LoggerService) {}
 
-  catch(exception: unknown, host: ArgumentsHost) {
+  catch(exception: unknown, host: ArgumentsHost): void {
     const ctx = host.switchToHttp()
-    const request = ctx.getRequest<Request>()
+    const request = ctx.getRequest<RequestWithUser>()
     const response = ctx.getResponse<Response>()
 
     // Obtener información del usuario si está autenticado
-    const user = (request as any).user
-    const userContext = user
+    const userContext = request.user
       ? {
-          userId: user.id,
-          userEmail: user.email,
+          userId: request.user.id,
+          userEmail: request.user.email,
+          userName: request.user.username,
         }
-      : {}
+      : undefined
 
     let status = HttpStatus.INTERNAL_SERVER_ERROR
     let message = 'Error interno del servidor'
-    let errorDetails: any = {}
+    const errorDetails: Record<string, unknown> = {}
 
     // Determinar tipo de excepción
     if (exception instanceof HttpException) {
@@ -42,25 +56,32 @@ export class AllExceptionsFilter implements ExceptionFilter {
       if (typeof exceptionResponse === 'string') {
         message = exceptionResponse
       } else if (typeof exceptionResponse === 'object') {
-        message = (exceptionResponse as any).message || message
-        errorDetails = exceptionResponse
+        const responseObj = exceptionResponse as HttpExceptionResponse
+        message = Array.isArray(responseObj.message)
+          ? responseObj.message.join(', ')
+          : responseObj.message || message
+        Object.assign(errorDetails, exceptionResponse)
       }
     } else if (exception instanceof Error) {
       message = exception.message
-      errorDetails = {
-        name: exception.name,
-        stack: exception.stack,
-      }
+      errorDetails.name = exception.name
+      errorDetails.stack = exception.stack
+    } else if (typeof exception === 'string') {
+      message = exception
     }
 
     // Log de la excepción con contexto completo
-    this.logger.logException(exception as Error, {
-      ...userContext,
-      method: request.method,
-      url: request.url,
-      ip: request.ip,
-      statusCode: status,
-      errorDetails,
+    const error = exception instanceof Error
+      ? exception
+      : new Error(typeof exception === 'string' ? exception : 'Unknown error')
+
+    this.logger.logException(error, {
+      req: request,
+      user: userContext,
+      additionalData: {
+        statusCode: status,
+        errorDetails,
+      },
     })
 
     // Respuesta al cliente
@@ -72,3 +93,4 @@ export class AllExceptionsFilter implements ExceptionFilter {
     })
   }
 }
+

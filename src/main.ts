@@ -7,10 +7,15 @@ import { AllExceptionsFilter } from './shared/filters/all-exceptions.filter'
 import { PrismaExceptionFilter } from './shared/filters/prisma-exception.filter'
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule)
+  const app = await NestFactory.create(AppModule, {
+    logger: false, // Disable default NestJS logger
+  })
 
   // Obtener instancia del LoggerService
   const logger = app.get(LoggerService)
+
+  // Usar nuestro logger custom
+  app.useLogger(logger)
 
   // Habilitar validación global
   app.useGlobalPipes(
@@ -55,11 +60,53 @@ async function bootstrap() {
     },
   })
 
-  const port = process.env.PORT ?? 3000
+  const port = Number(process.env.PORT) || 3000
+
+  // Log de conexión a la base de datos
+  logger.database.logConnection('connect', process.env.DATABASE_URL?.split('@')[1]?.split('/')[1])
+
   await app.listen(port)
 
-  const appUrl = await app.getUrl()
-  logger.log(`Application is running on: ${appUrl}`)
-  logger.log(`Swagger documentation available at: ${appUrl}/api/docs`)
+  // Imprimir banner de inicio
+  logger.startup.printStartupBanner(
+    {
+      appName: 'Audit API',
+      version: '1.0.0',
+      port,
+      nodeEnv: process.env.NODE_ENV || 'development',
+      apiPrefix: '/api/docs',
+    },
+    {
+      type: 'PostgreSQL',
+      host: process.env.DATABASE_URL?.split('@')[1]?.split('/')[0],
+      database: process.env.DATABASE_URL?.split('@')[1]?.split('/')[1],
+    },
+  )
+
+  // Handlers de shutdown graceful
+  process.on('SIGINT', () => handleShutdown('SIGINT'))
+  process.on('SIGTERM', () => handleShutdown('SIGTERM'))
+
+  function handleShutdown(signal: string): void {
+    logger.startup.printShutdown(`Received ${signal}`)
+    logger.database.logConnection('disconnect')
+    process.exit(0)
+  }
+
+  // Handler de errores no capturados
+  process.on('unhandledRejection', (reason: Error) => {
+    logger.startup.printError(reason, 'Unhandled Rejection')
+    logger.exception.logUnhandledException(reason, { type: 'unhandledRejection' })
+  })
+
+  process.on('uncaughtException', (error: Error) => {
+    logger.startup.printError(error, 'Uncaught Exception')
+    logger.exception.logUnhandledException(error, { type: 'uncaughtException' })
+    process.exit(1)
+  })
 }
-bootstrap()
+
+bootstrap().catch((error: Error) => {
+  console.error('Failed to start application:', error)
+  process.exit(1)
+})

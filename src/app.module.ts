@@ -9,6 +9,7 @@ import { AuthModule } from './core/auth/auth.module'
 import { UsersModule } from './core/users/users.module'
 import { RolesModule } from './core/roles/roles.module'
 import { SessionsModule } from './core/sessions/sessions.module'
+import { NotificationsModule } from './core/notifications/notifications.module'
 import { JwtAuthGuard } from './core/auth/guards/jwt-auth.guard'
 import { RolesGuard } from './core/auth/guards/roles.guard'
 import { LoggingInterceptor } from './shared/interceptors/logging.interceptor'
@@ -25,6 +26,7 @@ import { LoggingInterceptor } from './shared/interceptors/logging.interceptor'
     UsersModule,
     RolesModule,
     SessionsModule,
+    NotificationsModule,
   ],
   controllers: [AppController],
   providers: [

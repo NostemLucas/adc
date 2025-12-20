@@ -197,9 +197,30 @@ exports.Prisma.EvaluationScalarFieldEnum = {
   userId: 'userId'
 };
 
+exports.Prisma.NotificationScalarFieldEnum = {
+  id: 'id',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt',
+  deletedAt: 'deletedAt',
+  type: 'type',
+  title: 'title',
+  message: 'message',
+  link: 'link',
+  metadata: 'metadata',
+  isRead: 'isRead',
+  readAt: 'readAt',
+  recipientId: 'recipientId',
+  createdById: 'createdById'
+};
+
 exports.Prisma.SortOrder = {
   asc: 'asc',
   desc: 'desc'
+};
+
+exports.Prisma.NullableJsonNullValueInput = {
+  DbNull: Prisma.DbNull,
+  JsonNull: Prisma.JsonNull
 };
 
 exports.Prisma.QueryMode = {
@@ -210,6 +231,12 @@ exports.Prisma.QueryMode = {
 exports.Prisma.NullsOrder = {
   first: 'first',
   last: 'last'
+};
+
+exports.Prisma.JsonNullValueFilter = {
+  DbNull: Prisma.DbNull,
+  JsonNull: Prisma.JsonNull,
+  AnyNull: Prisma.AnyNull
 };
 exports.UserStatus = exports.$Enums.UserStatus = {
   ACTIVE: 'ACTIVE',
@@ -222,13 +249,21 @@ exports.OtpType = exports.$Enums.OtpType = {
   TWO_FACTOR: 'TWO_FACTOR'
 };
 
+exports.NotificationType = exports.$Enums.NotificationType = {
+  INFO: 'INFO',
+  SUCCESS: 'SUCCESS',
+  WARNING: 'WARNING',
+  ERROR: 'ERROR'
+};
+
 exports.Prisma.ModelName = {
   User: 'User',
   Role: 'Role',
   Session: 'Session',
   Otp: 'Otp',
   Audit: 'Audit',
-  Evaluation: 'Evaluation'
+  Evaluation: 'Evaluation',
+  Notification: 'Notification'
 };
 
 /**

@@ -1,276 +1,172 @@
 import { Injectable, LoggerService as NestLoggerService } from '@nestjs/common'
-import * as winston from 'winston'
-import DailyRotateFile from 'winston-daily-rotate-file'
 import { Request, Response } from 'express'
+import { HttpLogger, ExceptionLogger, DatabaseLogger, StartupLogger } from './loggers'
+import { UserContext } from './types'
 
-interface LogContext {
-  userId?: string
-  userEmail?: string
-  ip?: string
-  userAgent?: string
-  os?: string
-  browser?: string
-  device?: string
-  method?: string
-  url?: string
-  statusCode?: number
-  responseTime?: number
-  error?: any
-  errorDetails?: any
+interface RequestWithUser extends Request {
+  user?: {
+    id: string
+    email: string
+    username?: string
+  }
 }
 
 @Injectable()
 export class LoggerService implements NestLoggerService {
-  private logger: winston.Logger
+  public readonly http: HttpLogger
+  public readonly exception: ExceptionLogger
+  public readonly database: DatabaseLogger
+  public readonly startup: StartupLogger
 
   constructor() {
-    const logFormat = winston.format.combine(
-      winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
-      winston.format.errors({ stack: true }),
-      winston.format.json(),
-      winston.format.printf(({ timestamp, level, message, ...metadata }) => {
-        let msg = `${timestamp} [${level.toUpperCase()}]: ${message}`
-
-        if (Object.keys(metadata).length > 0) {
-          msg += ` ${JSON.stringify(metadata, null, 2)}`
-        }
-
-        return msg
-      })
-    )
-
-    // Transport para errores
-    const errorTransport = new DailyRotateFile({
-      filename: 'logs/error-%DATE%.log',
-      datePattern: 'YYYY-MM-DD',
-      level: 'error',
-      maxSize: '20m',
-      maxFiles: '30d',
-      format: logFormat,
-    })
-
-    // Transport para requests HTTP
-    const httpTransport = new DailyRotateFile({
-      filename: 'logs/http-%DATE%.log',
-      datePattern: 'YYYY-MM-DD',
-      maxSize: '20m',
-      maxFiles: '30d',
-      format: logFormat,
-    })
-
-    // Transport para logs combinados
-    const combinedTransport = new DailyRotateFile({
-      filename: 'logs/combined-%DATE%.log',
-      datePattern: 'YYYY-MM-DD',
-      maxSize: '20m',
-      maxFiles: '30d',
-      format: logFormat,
-    })
-
-    // Transport para consola (desarrollo)
-    const consoleTransport = new winston.transports.Console({
-      format: winston.format.combine(
-        winston.format.colorize(),
-        winston.format.timestamp({ format: 'HH:mm:ss' }),
-        winston.format.printf(({ timestamp, level, message, ...metadata }) => {
-          let msg = `${timestamp} ${level}: ${message}`
-
-          if (Object.keys(metadata).length > 0) {
-            msg += ` ${JSON.stringify(metadata)}`
-          }
-
-          return msg
-        })
-      ),
-    })
-
-    this.logger = winston.createLogger({
-      level: process.env.LOG_LEVEL || 'info',
-      transports: [
-        errorTransport,
-        httpTransport,
-        combinedTransport,
-        consoleTransport,
-      ],
-    })
+    this.http = new HttpLogger()
+    this.exception = new ExceptionLogger()
+    this.database = new DatabaseLogger()
+    this.startup = new StartupLogger()
   }
 
-  /**
-   * Log general
-   */
-  log(message: string, context?: LogContext) {
-    this.logger.info(message, context)
+  // ===== NESTJS LOGGER SERVICE INTERFACE =====
+  log(message: string): void {
+    this.http.info(message)
   }
 
-  /**
-   * Log de error
-   */
-  error(message: string, trace?: string, context?: LogContext) {
-    this.logger.error(message, { ...context, trace })
+  error(message: string, trace?: string): void {
+    const error = new Error(message)
+    if (trace) {
+      error.stack = trace
+    }
+    this.exception.logUnhandledException(error)
   }
 
-  /**
-   * Log de advertencia
-   */
-  warn(message: string, context?: LogContext) {
-    this.logger.warn(message, context)
+  warn(message: string): void {
+    this.http.warn(message)
   }
 
-  /**
-   * Log de debug
-   */
-  debug(message: string, context?: LogContext) {
-    this.logger.debug(message, context)
+  debug(message: string): void {
+    this.http.debug(message)
   }
 
-  /**
-   * Log de verbose
-   */
-  verbose(message: string, context?: LogContext) {
-    this.logger.verbose(message, context)
+  verbose(message: string): void {
+    this.http.verbose(message)
   }
 
-  /**
-   * Log de request HTTP
-   */
-  logHttpRequest(req: Request, context?: Partial<LogContext>) {
-    const userAgent = req.headers['user-agent'] || 'Unknown'
-    const { os, browser, device } = this.parseUserAgent(userAgent)
-
-    this.logger.info('Incoming Request', {
-      method: req.method,
-      url: req.url,
-      ip: this.getClientIp(req),
-      userAgent,
-      os,
-      browser,
-      device,
-      body: this.sanitizeBody(req.body),
-      query: req.query,
-      params: req.params,
-      ...context,
-    })
+  // ===== HTTP LOGGING =====
+  logHttpRequest(req: Request, userContext?: Partial<UserContext>): void {
+    const user = this.extractUserContext(req, userContext)
+    this.http.logRequest(req, user)
   }
 
-  /**
-   * Log de response HTTP
-   */
   logHttpResponse(
     req: Request,
     res: Response,
     responseTime: number,
-    context?: Partial<LogContext>
-  ) {
-    const userAgent = req.headers['user-agent'] || 'Unknown'
-    const { os, browser, device } = this.parseUserAgent(userAgent)
-
-    this.logger.info('Outgoing Response', {
-      method: req.method,
-      url: req.url,
-      statusCode: res.statusCode,
-      responseTime: `${responseTime}ms`,
-      ip: this.getClientIp(req),
-      userAgent,
-      os,
-      browser,
-      device,
-      ...context,
-    })
+    userContext?: Partial<UserContext>,
+  ): void {
+    const user = this.extractUserContext(req, userContext)
+    this.http.logResponse(req, res, responseTime, user)
   }
 
-  /**
-   * Log de excepciones
-   */
-  logException(error: Error, context?: LogContext) {
-    this.logger.error('Exception Thrown', {
-      message: error.message,
-      name: error.name,
-      stack: error.stack,
-      ...context,
-    })
+  // ===== EXCEPTION LOGGING =====
+  logException(
+    error: Error,
+    context?: {
+      req?: Request
+      user?: Partial<UserContext>
+      additionalData?: Record<string, unknown>
+    },
+  ): void {
+    const user = context?.user
+      ? this.normalizeUserContext(context.user)
+      : context?.req
+        ? this.extractUserContext(context.req)
+        : undefined
+
+    this.exception.logException(
+      error,
+      context?.req,
+      user,
+      context?.additionalData,
+    )
   }
 
-  /**
-   * Log de errores de base de datos
-   */
-  logDatabaseError(error: any, operation: string, context?: LogContext) {
-    this.logger.error('Database Error', {
-      operation,
-      errorCode: error.code,
-      errorMessage: error.message,
-      meta: error.meta,
-      ...context,
-    })
+  logUnhandledException(error: Error, additionalData?: Record<string, unknown>): void {
+    this.exception.logUnhandledException(error, additionalData)
   }
 
-  /**
-   * Parsear User-Agent para extraer OS, browser y device
-   */
-  private parseUserAgent(userAgent: string): {
-    os: string
-    browser: string
-    device: string
-  } {
-    let os = 'Unknown'
-    let browser = 'Unknown'
-    let device = 'Desktop'
+  // ===== DATABASE LOGGING =====
+  logDatabaseQuery(
+    query: string,
+    duration: number,
+    userContext?: Partial<UserContext>,
+  ): void {
+    const user = userContext ? this.normalizeUserContext(userContext) : undefined
+    this.database.logQuery(query, duration, user)
+  }
 
-    // Detectar OS
-    if (userAgent.includes('Windows')) os = 'Windows'
-    else if (userAgent.includes('Mac OS')) os = 'macOS'
-    else if (userAgent.includes('Linux')) os = 'Linux'
-    else if (userAgent.includes('Android')) os = 'Android'
-    else if (userAgent.includes('iOS') || userAgent.includes('iPhone') || userAgent.includes('iPad'))
-      os = 'iOS'
+  logDatabaseError(
+    error: {
+      code?: string
+      message: string
+      meta?: Record<string, unknown>
+      clientVersion?: string
+    },
+    operation: string,
+    options?: {
+      user?: Partial<UserContext>
+      query?: string
+    },
+  ): void {
+    const user = options?.user
+      ? this.normalizeUserContext(options.user)
+      : undefined
+    this.database.logError(error, operation, user, options?.query)
+  }
 
-    // Detectar Browser
-    if (userAgent.includes('Chrome') && !userAgent.includes('Edg')) browser = 'Chrome'
-    else if (userAgent.includes('Firefox')) browser = 'Firefox'
-    else if (userAgent.includes('Safari') && !userAgent.includes('Chrome')) browser = 'Safari'
-    else if (userAgent.includes('Edg')) browser = 'Edge'
-    else if (userAgent.includes('Opera') || userAgent.includes('OPR')) browser = 'Opera'
+  logDatabaseConnection(event: 'connect' | 'disconnect', database?: string): void {
+    this.database.logConnection(event, database)
+  }
 
-    // Detectar Device
-    if (
-      userAgent.includes('Mobile') ||
-      userAgent.includes('Android') ||
-      userAgent.includes('iPhone')
-    ) {
-      device = 'Mobile'
-    } else if (userAgent.includes('Tablet') || userAgent.includes('iPad')) {
-      device = 'Tablet'
+  logDatabaseSlowQuery(
+    query: string,
+    duration: number,
+    threshold: number = 1000,
+    userContext?: Partial<UserContext>,
+  ): void {
+    const user = userContext ? this.normalizeUserContext(userContext) : undefined
+    this.database.logSlowQuery(query, duration, threshold, user)
+  }
+
+  // ===== HELPER METHODS =====
+  private extractUserContext(
+    req: Request,
+    userContext?: Partial<UserContext>,
+  ): UserContext | undefined {
+    const reqWithUser = req as RequestWithUser
+
+    if (userContext && userContext.userId && userContext.userEmail) {
+      return this.normalizeUserContext(userContext)
     }
 
-    return { os, browser, device }
-  }
-
-  /**
-   * Obtener IP real del cliente
-   */
-  private getClientIp(req: Request): string {
-    const forwarded = req.headers['x-forwarded-for']
-    const ip = forwarded
-      ? (typeof forwarded === 'string' ? forwarded.split(',')[0] : forwarded[0])
-      : req.socket.remoteAddress
-
-    return ip || 'Unknown'
-  }
-
-  /**
-   * Sanitizar body para no exponer información sensible
-   */
-  private sanitizeBody(body: any): any {
-    if (!body) return body
-
-    const sanitized = { ...body }
-    const sensitiveFields = ['password', 'token', 'refreshToken', 'accessToken']
-
-    sensitiveFields.forEach((field) => {
-      if (sanitized[field]) {
-        sanitized[field] = '***REDACTED***'
+    if (reqWithUser.user) {
+      return {
+        userId: reqWithUser.user.id,
+        userEmail: reqWithUser.user.email,
+        userName: reqWithUser.user.username,
       }
-    })
+    }
 
-    return sanitized
+    return undefined
+  }
+
+  private normalizeUserContext(partial: Partial<UserContext>): UserContext | undefined {
+    if (!partial.userId || !partial.userEmail) {
+      return undefined
+    }
+
+    return {
+      userId: partial.userId,
+      userEmail: partial.userEmail,
+      userName: partial.userName,
+    }
   }
 }

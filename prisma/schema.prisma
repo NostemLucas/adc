@@ -1,6 +1,5 @@
 generator client {
   provider = "prisma-client-js"
-  output = "./generated/prisma"
 }
 
 datasource db {
@@ -17,6 +16,13 @@ enum OtpType {
   EMAIL_VERIFICATION
   PASSWORD_RESET
   TWO_FACTOR
+}
+
+enum NotificationType {
+  INFO
+  SUCCESS
+  WARNING
+  ERROR
 }
 
 // ===== MODELS =====
@@ -42,13 +48,15 @@ model User {
   lockUntil           DateTime?   @map("lock_until")
 
   // Relations
-  roles           Role[]       @relation("UserRoles")
-  sessions        Session[]
-  otps            Otp[]
-  managedAudits   Audit[]      @relation("ManagedAudits")
-  clientAudits    Audit[]      @relation("ClientAudits")
-  auditorAudits   Audit[]      @relation("AuditAuditors")
-  evaluations     Evaluation[]
+  roles                 Role[]         @relation("UserRoles")
+  sessions              Session[]
+  otps                  Otp[]
+  managedAudits         Audit[]        @relation("ManagedAudits")
+  clientAudits          Audit[]        @relation("ClientAudits")
+  auditorAudits         Audit[]        @relation("AuditAuditors")
+  evaluations           Evaluation[]
+  receivedNotifications Notification[] @relation("ReceivedNotifications")
+  createdNotifications  Notification[] @relation("CreatedNotifications")
 
   @@map("users")
 }
@@ -146,4 +154,30 @@ model Evaluation {
   user User @relation(fields: [userId], references: [id])
 
   @@map("evaluations")
+}
+
+model Notification {
+  id        String    @id @default(uuid())
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  // Notification fields
+  type        NotificationType
+  title       String
+  message     String           @db.Text
+  link        String?
+  metadata    Json?
+  isRead      Boolean          @default(false) @map("is_read")
+  readAt      DateTime?        @map("read_at")
+  recipientId String           @map("recipient_id")
+  createdById String?          @map("created_by_id")
+
+  // Relations
+  recipient User  @relation("ReceivedNotifications", fields: [recipientId], references: [id], onDelete: Cascade)
+  createdBy User? @relation("CreatedNotifications", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([recipientId])
+  @@index([recipientId, isRead])
+  @@map("notifications")
 }
