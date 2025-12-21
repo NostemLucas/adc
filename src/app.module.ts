@@ -4,8 +4,10 @@ import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core'
 import { AppController } from './app.controller'
 import { AppService } from './app.service'
 import { PrismaModule } from './shared/database/prisma.module'
+import { ContextModule, RequestContextInterceptor } from './shared/context'
 import { LoggerModule } from './shared/logger/logger.module'
 import { EmailModule } from './shared/email/email.module'
+import { FileUploadModule } from './shared/file-upload/file-upload.module'
 import { AuthModule } from './core/auth/auth.module'
 import { UsersModule } from './core/users/users.module'
 import { RolesModule } from './core/roles/roles.module'
@@ -23,8 +25,10 @@ import { LoggingInterceptor } from './shared/interceptors/logging.interceptor'
       envFilePath: '.env',
     }),
     PrismaModule,
+    ContextModule, // 👈 Módulo global de contexto de request
     LoggerModule,
     EmailModule,
+    FileUploadModule,
     AuthModule,
     UsersModule,
     RolesModule,
@@ -35,6 +39,10 @@ import { LoggingInterceptor } from './shared/interceptors/logging.interceptor'
   controllers: [AppController],
   providers: [
     AppService,
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: RequestContextInterceptor, // 👈 DEBE estar ANTES que otros interceptors
+    },
     {
       provide: APP_INTERCEPTOR,
       useClass: LoggingInterceptor,

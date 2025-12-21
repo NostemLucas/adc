@@ -1,7 +1,10 @@
 import { Injectable } from '@nestjs/common'
-import { Notification as PrismaNotification } from '@prisma/client'
+import { Notification as PrismaNotification, Prisma } from '@prisma/client'
 import { PrismaService } from '@shared/database/prisma.service'
-import { Notification } from '../domain/notification.entity'
+import {
+  Notification,
+  NotificationMetadata,
+} from '../domain/notification.entity'
 import { NotificationType } from '../domain/notification-type.enum'
 
 @Injectable()
@@ -18,7 +21,7 @@ export class NotificationRepository {
       title: prismaNotification.title,
       message: prismaNotification.message,
       link: prismaNotification.link,
-      metadata: prismaNotification.metadata,
+      metadata: prismaNotification.metadata as NotificationMetadata | null,
       isRead: prismaNotification.isRead,
       readAt: prismaNotification.readAt,
       recipientId: prismaNotification.recipientId,
@@ -33,7 +36,7 @@ export class NotificationRepository {
         title: notification.title,
         message: notification.message,
         link: notification.link || undefined,
-        metadata: notification.metadata || undefined,
+        metadata: (notification.metadata as Prisma.InputJsonValue) || undefined,
         isRead: notification.isRead,
         readAt: notification.readAt || undefined,
         recipientId: notification.recipientId,

@@ -1,7 +1,16 @@
 import { Role } from 'src/core/roles/domain/role.entity'
-import { UserStatus } from '@prisma/client'
+import { UserStatus } from './constants'
 import { RoleType, EXCLUSIVE_ROLE } from 'src/core/roles/constants'
-
+import { LoginPolicy } from './login-policy'
+import { Email, CI, Phone } from './value-objects'
+import {
+  InvalidUserDataException,
+  InvalidPasswordException,
+  EmptyFieldException,
+  MissingRolesException,
+  ExclusiveRoleViolationException,
+  RoleNotFoundException,
+} from './exceptions'
 
 export class User {
   // Base fields
@@ -13,11 +22,11 @@ export class User {
   // User fields
   names!: string
   lastNames!: string
-  email!: string
-  phone?: string | null
+  email!: Email // ← Value Object
+  phone?: Phone | null // ← Value Object
   username!: string
   password!: string
-  ci!: string
+  ci!: CI // ← Value Object
   image?: string | null
   address?: string | null
   status!: UserStatus
@@ -44,19 +53,19 @@ export class User {
   }
 
   get isAdmin(): boolean {
-    return this.hasRole(RoleType.ADMINISTRADOR)
+    return this.hasRoleByName(RoleType.ADMINISTRADOR)
   }
 
   get isManager(): boolean {
-    return this.hasRole(RoleType.GERENTE)
+    return this.hasRoleByName(RoleType.GERENTE)
   }
 
   get isAuditor(): boolean {
-    return this.hasRole(RoleType.AUDITOR)
+    return this.hasRoleByName(RoleType.AUDITOR)
   }
 
   get isClient(): boolean {
-    return this.hasRole(RoleType.CLIENTE)
+    return this.hasRoleByName(RoleType.CLIENTE)
   }
 
   // ===== MÉTODOS DE COMPORTAMIENTO =====
@@ -73,39 +82,64 @@ export class User {
     this.status = this.isActive ? UserStatus.INACTIVE : UserStatus.ACTIVE
   }
 
-  hasRole(roleNameOrId: string): boolean {
-    return this.roles.some((role) => role.id === roleNameOrId || role.name === roleNameOrId)
+  /**
+   * Verifica si el usuario tiene un rol específico por nombre.
+   */
+  hasRoleByName(roleName: string): boolean {
+    return this.roles.some((role) => role.name === roleName)
   }
 
-  getRole(id?: string): Role | undefined {
+  /**
+   * Verifica si el usuario tiene un rol específico por ID.
+   */
+  hasRoleById(roleId: string): boolean {
+    return this.roles.some((role) => role.id === roleId)
+  }
+
+  /**
+   * Busca un rol específico por ID.
+   */
+  getRoleById(roleId: string): Role | undefined {
+    return this.roles.find((role) => role.id === roleId)
+  }
+
+  /**
+   * Rol principal del usuario.
+   * En este dominio, el rol principal es el rol con mayor jerarquía.
+   * Si el usuario tiene el rol de CLIENTE, ese es siempre el rol principal (es exclusivo).
+   * De lo contrario, se devuelve el primer rol asignado.
+   */
+  get primaryRole(): Role | undefined {
     if (!this.roles || this.roles.length === 0) return undefined
 
-    if (id) {
-      return this.roles.find((role) => role.id === id)
-    }
+    // Si tiene rol de cliente, ese es el principal (es exclusivo)
+    const clientRole = this.roles.find((role) => role.name === EXCLUSIVE_ROLE)
+    if (clientRole) return clientRole
 
+    // De lo contrario, el primer rol (puede mejorarse con jerarquía explícita)
     return this.roles[0]
   }
 
   updatePassword(hashedPassword: string): void {
     if (!User.isValidHashedPassword(hashedPassword)) {
-      throw new Error('La contraseña debe estar hasheada correctamente')
+      throw new InvalidPasswordException(
+        'La contraseña debe estar hasheada correctamente',
+      )
     }
     this.password = hashedPassword
     this.resetLoginAttempts()
   }
 
   // ===== MÉTODOS PARA BLOQUEO POR INTENTOS =====
-  incrementFailedAttempts(): void {
+  /**
+   * Incrementa los intentos fallidos de login y bloquea la cuenta si es necesario.
+   * @param policy Política de login a aplicar (por defecto, la política estándar del sistema)
+   */
+  incrementFailedAttempts(policy: LoginPolicy = LoginPolicy.default()): void {
     this.failedLoginAttempts++
 
-    const MAX_ATTEMPTS = 3
-    const LOCK_DURATION_MINUTES = 30
-
-    if (this.failedLoginAttempts >= MAX_ATTEMPTS) {
-      const lockUntil = new Date()
-      lockUntil.setMinutes(lockUntil.getMinutes() + LOCK_DURATION_MINUTES)
-      this.lockUntil = lockUntil
+    if (policy.shouldLockAccount(this.failedLoginAttempts)) {
+      this.lockUntil = policy.calculateLockUntil()
     }
   }
 
@@ -142,12 +176,12 @@ export class User {
 
     user.names = data.names.trim()
     user.lastNames = data.lastNames.trim()
-    user.email = data.email.trim().toLowerCase()
+    user.email = Email.create(data.email) // ← Crea Value Object
     user.username = data.username.trim()
     user.password = data.password
-    user.ci = data.ci.trim()
+    user.ci = CI.create(data.ci) // ← Crea Value Object
     user.roles = data.roles
-    user.phone = data.phone?.trim() || null
+    user.phone = data.phone ? Phone.create(data.phone) : null // ← Crea Value Object
     user.address = data.address?.trim() || null
     user.image = data.image || null
     user.status = UserStatus.ACTIVE
@@ -188,11 +222,11 @@ export class User {
     // User fields
     user.names = data.names
     user.lastNames = data.lastNames
-    user.email = data.email
-    user.phone = data.phone || null
+    user.email = Email.create(data.email) // ← Crea Value Object
+    user.phone = data.phone ? Phone.create(data.phone) : null // ← Crea Value Object
     user.username = data.username
     user.password = data.password
-    user.ci = data.ci
+    user.ci = CI.create(data.ci) // ← Crea Value Object
     user.image = data.image || null
     user.address = data.address || null
     user.status = data.status
@@ -219,42 +253,35 @@ export class User {
   }): void {
     if (data.names !== undefined) {
       if (!data.names.trim()) {
-        throw new Error('Los nombres no pueden estar vacíos')
+        throw new EmptyFieldException('nombres')
       }
       this.names = data.names.trim()
     }
 
     if (data.lastNames !== undefined) {
       if (!data.lastNames.trim()) {
-        throw new Error('Los apellidos no pueden estar vacíos')
+        throw new EmptyFieldException('apellidos')
       }
       this.lastNames = data.lastNames.trim()
     }
 
     if (data.email !== undefined) {
-      const cleanEmail = data.email.trim().toLowerCase()
-      if (!User.isValidEmail(cleanEmail)) {
-        throw new Error('Formato de email inválido')
-      }
-      this.email = cleanEmail
+      this.email = Email.create(data.email) // ← Crea Value Object (valida automáticamente)
     }
 
     if (data.username !== undefined) {
       if (!data.username.trim()) {
-        throw new Error('El nombre de usuario no puede estar vacío')
+        throw new EmptyFieldException('nombre de usuario')
       }
       this.username = data.username.trim()
     }
 
     if (data.ci !== undefined) {
-      if (!User.isValidCi(data.ci.trim())) {
-        throw new Error('Formato de CI inválido')
-      }
-      this.ci = data.ci.trim()
+      this.ci = CI.create(data.ci) // ← Crea Value Object (valida automáticamente)
     }
 
     if (data.phone !== undefined) {
-      this.phone = data.phone?.trim() || null
+      this.phone = data.phone ? Phone.create(data.phone) : null // ← Crea Value Object
     }
 
     if (data.address !== undefined) {
@@ -267,7 +294,7 @@ export class User {
 
     if (data.roles !== undefined) {
       if (!data.roles || data.roles.length === 0) {
-        throw new Error('El usuario debe tener al menos un rol')
+        throw new MissingRolesException()
       }
       User.validateRoles(data.roles)
       this.roles = data.roles
@@ -285,31 +312,31 @@ export class User {
     roles: Role[]
   }): void {
     if (!data.names?.trim()) {
-      throw new Error('Los nombres son requeridos')
+      throw new EmptyFieldException('nombres')
     }
 
     if (!data.lastNames?.trim()) {
-      throw new Error('Los apellidos son requeridos')
+      throw new EmptyFieldException('apellidos')
     }
 
     if (!data.email?.trim()) {
-      throw new Error('El email es requerido')
+      throw new EmptyFieldException('email')
     }
 
     if (!data.username?.trim()) {
-      throw new Error('El nombre de usuario es requerido')
+      throw new EmptyFieldException('nombre de usuario')
     }
 
     if (!data.password) {
-      throw new Error('La contraseña es requerida')
+      throw new EmptyFieldException('contraseña')
     }
 
     if (!data.ci?.trim()) {
-      throw new Error('La cédula de identidad es requerida')
+      throw new EmptyFieldException('cédula de identidad')
     }
 
     if (!data.roles || data.roles.length === 0) {
-      throw new Error('El usuario debe tener al menos un rol')
+      throw new MissingRolesException()
     }
   }
 
@@ -318,43 +345,40 @@ export class User {
     password: string
     ci: string
   }): void {
-    const cleanEmail = data.email.trim().toLowerCase()
-    if (!User.isValidEmail(cleanEmail)) {
-      throw new Error('Formato de email inválido')
-    }
+    // Email y CI se validan automáticamente en los Value Objects
+    // Solo validamos password aquí
 
     if (!User.isValidHashedPassword(data.password)) {
-      throw new Error('La contraseña debe estar hasheada')
-    }
-
-    if (!User.isValidCi(data.ci.trim())) {
-      throw new Error('Formato de CI inválido')
+      throw new InvalidPasswordException('La contraseña debe estar hasheada')
     }
   }
 
   private static validateRoles(roles: Role[]): void {
     if (!roles || roles.length === 0) {
-      throw new Error('El usuario debe tener al menos un rol')
+      throw new MissingRolesException()
     }
 
     const hasClientRole = roles.some((role) => role.name === EXCLUSIVE_ROLE)
 
     if (hasClientRole && roles.length > 1) {
-      throw new Error(
-        'El rol de CLIENTE es exclusivo y no puede combinarse con otros roles',
-      )
+      throw new ExclusiveRoleViolationException('CLIENTE')
     }
   }
 
-  private static isValidEmail(email: string): boolean {
-    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
-  }
-
+  /**
+   * Valida que la contraseña esté hasheada (no texto plano).
+   * Soporta múltiples algoritmos de hashing (bcrypt, argon2, etc.)
+   */
   private static isValidHashedPassword(password: string): boolean {
-    return password.length === 60 && password.startsWith('$2')
-  }
+    // Validación genérica: debe ser un hash (no texto plano)
+    // Los hashes típicamente empiezan con $ y tienen formato específico
+    const hashPatterns = [
+      /^\$2[aby]\$/, // bcrypt
+      /^\$argon2/, // argon2
+      /^\$6\$/, // SHA-512
+      /^\$5\$/, // SHA-256
+    ]
 
-  private static isValidCi(ci: string): boolean {
-    return /^\d{7,10}$/.test(ci)
+    return hashPatterns.some((pattern) => pattern.test(password))
   }
 }

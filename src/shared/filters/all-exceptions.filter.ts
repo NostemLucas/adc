@@ -7,6 +7,21 @@ import {
 } from '@nestjs/common'
 import { Request, Response } from 'express'
 import { LoggerService } from '../logger/logger.service'
+import { DomainException } from 'src/core/users/domain/exceptions/domain.exception'
+import {
+  InvalidEmailFormatException,
+  InvalidCiFormatException,
+  InvalidPhoneFormatException,
+  InvalidPasswordException,
+  EmptyFieldException,
+  MissingRolesException,
+  ExclusiveRoleViolationException,
+  RoleNotFoundException,
+  DuplicateEmailException,
+  DuplicateUsernameException,
+  DuplicateCiException,
+  InvalidUserDataException,
+} from 'src/core/users/domain/exceptions/user.exceptions'
 
 interface RequestWithUser extends Request {
   user?: {
@@ -30,6 +45,42 @@ interface HttpExceptionResponse {
 export class AllExceptionsFilter implements ExceptionFilter {
   constructor(private readonly logger: LoggerService) {}
 
+  /**
+   * Mapea excepciones de dominio a status HTTP apropiados
+   */
+  private mapDomainExceptionToHttpStatus(exception: DomainException): number {
+    // Validaciones de formato → 400 BAD REQUEST
+    if (
+      exception instanceof InvalidEmailFormatException ||
+      exception instanceof InvalidCiFormatException ||
+      exception instanceof InvalidPhoneFormatException ||
+      exception instanceof InvalidPasswordException ||
+      exception instanceof EmptyFieldException ||
+      exception instanceof MissingRolesException ||
+      exception instanceof ExclusiveRoleViolationException ||
+      exception instanceof InvalidUserDataException
+    ) {
+      return HttpStatus.BAD_REQUEST
+    }
+
+    // Duplicados → 409 CONFLICT
+    if (
+      exception instanceof DuplicateEmailException ||
+      exception instanceof DuplicateUsernameException ||
+      exception instanceof DuplicateCiException
+    ) {
+      return HttpStatus.CONFLICT
+    }
+
+    // No encontrado → 404 NOT FOUND
+    if (exception instanceof RoleNotFoundException) {
+      return HttpStatus.NOT_FOUND
+    }
+
+    // Por defecto, error interno (esto no debería pasar)
+    return HttpStatus.INTERNAL_SERVER_ERROR
+  }
+
   catch(exception: unknown, host: ArgumentsHost): void {
     const ctx = host.switchToHttp()
     const request = ctx.getRequest<RequestWithUser>()
@@ -50,6 +101,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
 
     // Determinar tipo de excepción
     if (exception instanceof HttpException) {
+      // Excepciones HTTP de NestJS (BadRequestException, NotFoundException, etc.)
       status = exception.getStatus()
       const exceptionResponse = exception.getResponse()
 
@@ -62,7 +114,14 @@ export class AllExceptionsFilter implements ExceptionFilter {
           : responseObj.message || message
         Object.assign(errorDetails, exceptionResponse)
       }
+    } else if (exception instanceof DomainException) {
+      // Excepciones del dominio (InvalidEmailFormatException, DuplicateEmailException, etc.)
+      status = this.mapDomainExceptionToHttpStatus(exception)
+      message = exception.message
+      errorDetails.code = exception.code
+      errorDetails.name = exception.name
     } else if (exception instanceof Error) {
+      // Otros errores genéricos
       message = exception.message
       errorDetails.name = exception.name
       errorDetails.stack = exception.stack
@@ -71,9 +130,10 @@ export class AllExceptionsFilter implements ExceptionFilter {
     }
 
     // Log de la excepción con contexto completo
-    const error = exception instanceof Error
-      ? exception
-      : new Error(typeof exception === 'string' ? exception : 'Unknown error')
+    const error =
+      exception instanceof Error
+        ? exception
+        : new Error(typeof exception === 'string' ? exception : 'Unknown error')
 
     this.logger.logException(error, {
       req: request,
@@ -93,4 +153,3 @@ export class AllExceptionsFilter implements ExceptionFilter {
     })
   }
 }
-

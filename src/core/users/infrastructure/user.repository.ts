@@ -5,9 +5,11 @@ import {
   Permission as PrismaPermission,
 } from '@prisma/client'
 import { BaseRepository, TransactionContext } from '@shared/database'
+import { RequestContext } from '@shared/context'
 import { User } from '../domain/user.entity'
 import { Role } from 'src/core/roles/domain/role.entity'
 import { Permission } from 'src/core/permissions/domain/permission.entity'
+import { UserStatusMapper } from './user-status.mapper'
 
 type PrismaRoleWithPermissions = PrismaRole & {
   permissions?: PrismaPermission[]
@@ -15,13 +17,16 @@ type PrismaRoleWithPermissions = PrismaRole & {
 type PrismaUserWithRoles = PrismaUser & { roles?: PrismaRoleWithPermissions[] }
 
 /**
- * UserRepository - Con soporte de transacciones mediante contexto CLS
- * Extiende BaseRepository para participar automáticamente en transacciones
+ * UserRepository - Con soporte de transacciones y auditoría automática mediante contexto CLS
+ * Extiende BaseRepository para participar automáticamente en transacciones y auditoría
  */
 @Injectable()
 export class UserRepository extends BaseRepository {
-  constructor(transactionContext: TransactionContext) {
-    super(transactionContext)
+  constructor(
+    transactionContext: TransactionContext,
+    requestContext: RequestContext,
+  ) {
+    super(transactionContext, requestContext)
   }
 
   /**
@@ -42,7 +47,7 @@ export class UserRepository extends BaseRepository {
       ci: prismaUser.ci,
       image: prismaUser.image,
       address: prismaUser.address,
-      status: prismaUser.status,
+      status: UserStatusMapper.toDomain(prismaUser.status),
       failedLoginAttempts: prismaUser.failedLoginAttempts,
       lockUntil: prismaUser.lockUntil,
       roles:
@@ -183,20 +188,29 @@ export class UserRepository extends BaseRepository {
 
   /**
    * Crear usuario
+   *
+   * NOTA: Para habilitar auditoría automática (createdBy), agrega el campo a tu schema:
+   * ```prisma
+   * model User {
+   *   createdBy String?
+   *   // ...
+   * }
+   * ```
+   * Y luego usa: data: this.withAuditCreate({ ...userData })
    */
   async create(user: User): Promise<User> {
     const created: PrismaUserWithRoles = await this.prisma.user.create({
       data: {
         names: user.names,
         lastNames: user.lastNames,
-        email: user.email,
-        phone: user.phone,
+        email: user.email.getValue(), // ← Extrae string del Value Object
+        phone: user.phone?.getValue() || null, // ← Extrae string del Value Object
         username: user.username,
         password: user.password,
-        ci: user.ci,
+        ci: user.ci.getValue(), // ← Extrae string del Value Object
         image: user.image,
         address: user.address,
-        status: user.status,
+        status: UserStatusMapper.toPrisma(user.status),
         failedLoginAttempts: user.failedLoginAttempts,
         lockUntil: user.lockUntil,
         roles: {
@@ -217,6 +231,15 @@ export class UserRepository extends BaseRepository {
 
   /**
    * Actualizar usuario
+   *
+   * NOTA: Para habilitar auditoría automática (updatedBy), agrega el campo a tu schema:
+   * ```prisma
+   * model User {
+   *   updatedBy String?
+   *   // ...
+   * }
+   * ```
+   * Y luego usa: data: this.withAuditUpdate({ ...userData })
    */
   async update(user: User): Promise<User> {
     const updated: PrismaUserWithRoles = await this.prisma.user.update({
@@ -224,14 +247,14 @@ export class UserRepository extends BaseRepository {
       data: {
         names: user.names,
         lastNames: user.lastNames,
-        email: user.email,
-        phone: user.phone,
+        email: user.email.getValue(), // ← Extrae string del Value Object
+        phone: user.phone?.getValue() || null, // ← Extrae string del Value Object
         username: user.username,
         password: user.password,
-        ci: user.ci,
+        ci: user.ci.getValue(), // ← Extrae string del Value Object
         image: user.image,
         address: user.address,
-        status: user.status,
+        status: UserStatusMapper.toPrisma(user.status),
         failedLoginAttempts: user.failedLoginAttempts,
         lockUntil: user.lockUntil,
         roles: {
@@ -263,11 +286,12 @@ export class UserRepository extends BaseRepository {
 
   /**
    * Eliminar (soft delete)
+   * Automáticamente agrega deletedBy y deletedAt desde el RequestContext
    */
   async delete(id: string): Promise<void> {
     await this.prisma.user.update({
       where: { id },
-      data: { deletedAt: new Date() },
+      data: this.withAuditDelete(),
     })
   }
 

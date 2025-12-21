@@ -3,14 +3,17 @@ import { NotificationsGateway } from '../../infrastructure/notifications.gateway
 import { CreateNotificationUseCase } from '../use-cases/create-notification.use-case'
 import { NotificationType } from '../../domain/notification-type.enum'
 import { NotificationResponseDto } from '../dto/notification-response.dto'
-import { Notification } from '../../domain/notification.entity'
+import {
+  Notification,
+  NotificationMetadata,
+} from '../../domain/notification.entity'
 import { UserRepository } from 'src/core/users/infrastructure/user.repository'
 
 export interface NotifyAdminsParams {
   title: string
   message: string
   link?: string
-  metadata?: any
+  metadata?: NotificationMetadata
   createdById?: string
 }
 
@@ -18,7 +21,7 @@ export interface NotifyManagersAuditorsParams {
   title: string
   message: string
   link?: string
-  metadata?: any
+  metadata?: NotificationMetadata
   createdById?: string
 }
 
@@ -28,7 +31,7 @@ export interface NotifyUserParams {
   title: string
   message: string
   link?: string
-  metadata?: any
+  metadata?: NotificationMetadata
   createdById?: string
 }
 
@@ -87,7 +90,7 @@ export class NotificationBroadcastService {
     const auditors = await this.userRepository.findByRole('auditor')
     const users = [...managers, ...auditors]
 
-    // Create and broadcast notifications to each user
+    // Create notifications for each user and broadcast
     for (const user of users) {
       const notification = await this.createNotificationUseCase.execute(
         {
@@ -100,21 +103,8 @@ export class NotificationBroadcastService {
         },
         params.createdById,
       )
-    }
 
-    // Emit to manager-auditor room once (will reach all)
-    if (users.length > 0) {
-      const notification = await this.createNotificationUseCase.execute(
-        {
-          type: NotificationType.INFO,
-          title: params.title,
-          message: params.message,
-          recipientId: users[0].id, // Just for the response
-          link: params.link,
-          metadata: params.metadata,
-        },
-        params.createdById,
-      )
+      // Emit to manager-auditor room (all will receive)
       this.notificationsGateway.emitToManagersAndAuditors(
         this.toResponseDto(notification),
       )

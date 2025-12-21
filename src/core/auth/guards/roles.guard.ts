@@ -24,7 +24,7 @@ export class RolesGuard implements CanActivate {
       throw new ForbiddenException('No tienes permisos para acceder a este recurso')
     }
 
-    const hasRole = requiredRoles.some((role) => user.hasRole(role))
+    const hasRole = requiredRoles.some((role) => user.hasRoleByName(role))
 
     if (!hasRole) {
       throw new ForbiddenException(

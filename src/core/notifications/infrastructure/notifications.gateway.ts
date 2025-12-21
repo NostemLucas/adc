@@ -79,9 +79,7 @@ export class NotificationsGateway
       // Also join personal room
       await client.join(`user-${user.id}`)
 
-      this.logger.log(
-        `Client connected: ${client.id} (User: ${user.username})`,
-      )
+      this.logger.log(`Client connected: ${client.id} (User: ${user.username})`)
     } catch (error) {
       this.logger.error(`Connection error: ${error.message}`)
       client.disconnect()

@@ -4,26 +4,36 @@ import { UserRepository } from '../../infrastructure/user.repository'
 import { RoleRepository } from '../../../roles/infrastructure/role.repository'
 import { User } from '../../domain/user.entity'
 import { CreateUserDto } from '../dto/create-user.dto'
+import { RoleNotFoundException } from '../../domain/exceptions'
+import { UserUniquenessValidator } from '../../domain/services'
 
 @Injectable()
 export class CreateUserUseCase {
   constructor(
     private readonly userRepository: UserRepository,
     private readonly roleRepository: RoleRepository,
+    private readonly uniquenessValidator: UserUniquenessValidator,
   ) {}
 
   async execute(dto: CreateUserDto): Promise<User> {
-    // 1. Buscar roles
+    // 1. Validar unicidad usando Domain Service
+    await this.uniquenessValidator.validateForCreate(
+      dto.email,
+      dto.username,
+      dto.ci,
+    )
+
+    // 2. Buscar roles
     const roles = await this.roleRepository.findByIds(dto.roleIds)
 
     if (roles.length !== dto.roleIds.length) {
-      throw new Error('Algunos roles no existen')
+      throw new RoleNotFoundException('Algunos roles no existen')
     }
 
-    // 2. Hashear contraseña
+    // 3. Hashear contraseña
     const hashedPassword = await bcrypt.hash(dto.password, 10)
 
-    // 3. Crear entidad (con validaciones de dominio)
+    // 4. Crear entidad (validaciones de formato/dominio)
     const user = User.create({
       names: dto.names,
       lastNames: dto.lastNames,
@@ -37,7 +47,7 @@ export class CreateUserUseCase {
       image: dto.image,
     })
 
-    // 4. Guardar (Prisma Exception Filter maneja errores)
+    // 5. Persistir
     return await this.userRepository.create(user)
   }
 }

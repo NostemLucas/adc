@@ -13,7 +13,11 @@ import { OtpRepository } from '../infrastructure/otp.repository'
 import { User } from 'src/core/users/domain/user.entity'
 import { Session } from 'src/core/sessions/domain/session.entity'
 import { Otp } from '../domain/otp.entity'
-import { JwtPayload, TokenPair, LoginResponse } from '../interfaces/jwt-payload.interface'
+import {
+  JwtPayload,
+  TokenPair,
+  LoginResponse,
+} from '../interfaces/jwt-payload.interface'
 import { EmailService } from '@shared/email'
 
 /**
@@ -58,7 +62,9 @@ export class AuthService {
         )
       }
       if (!user.isActive) {
-        throw new UnauthorizedException('Cuenta inactiva. Contacta al administrador.')
+        throw new UnauthorizedException(
+          'Cuenta inactiva. Contacta al administrador.',
+        )
       }
     }
 
@@ -103,7 +109,7 @@ export class AuthService {
       user: {
         id: user.id,
         username: user.username,
-        email: user.email,
+        email: user.email.getValue(),
         fullName: user.fullName,
         roles: user.roles.map((role) => role.name),
       },
@@ -122,7 +128,8 @@ export class AuthService {
       })
 
       // Buscar la sesión
-      const session = await this.sessionRepository.findByRefreshToken(refreshToken)
+      const session =
+        await this.sessionRepository.findByRefreshToken(refreshToken)
 
       if (!session || !session.isValid) {
         throw new UnauthorizedException('Sesión inválida o expirada')
@@ -158,7 +165,8 @@ export class AuthService {
    * Logout: invalida la sesión actual
    */
   async logout(userId: string, refreshToken: string): Promise<void> {
-    const session = await this.sessionRepository.findByRefreshToken(refreshToken)
+    const session =
+      await this.sessionRepository.findByRefreshToken(refreshToken)
 
     if (session && session.userId === userId && session.isActive) {
       session.invalidate()
@@ -193,7 +201,7 @@ export class AuthService {
     const payload: JwtPayload = {
       sub: user.id,
       username: user.username,
-      email: user.email,
+      email: user.email.getValue(),
       roles: user.roles.map((role) => role.name),
     }
 
@@ -203,7 +211,9 @@ export class AuthService {
         expiresIn: this.configService.get('JWT_EXPIRATION', '15m'),
       }),
       this.jwtService.signAsync(payload, {
-        secret: this.configService.get('JWT_REFRESH_SECRET') || 'default-refresh-secret',
+        secret:
+          this.configService.get('JWT_REFRESH_SECRET') ||
+          'default-refresh-secret',
         expiresIn: this.configService.get('JWT_REFRESH_EXPIRATION', '7d'),
       }),
     ])
@@ -215,7 +225,10 @@ export class AuthService {
    * Obtiene el tiempo de expiración del refresh token en milisegundos
    */
   private getRefreshTokenExpirationMs(): number {
-    const expiration = this.configService.get<string>('JWT_REFRESH_EXPIRATION', '7d')
+    const expiration = this.configService.get<string>(
+      'JWT_REFRESH_EXPIRATION',
+      '7d',
+    )
     // Convertir '7d' a milisegundos (7 * 24 * 60 * 60 * 1000)
     const days = parseInt(expiration.replace('d', ''))
     return days * 24 * 60 * 60 * 1000
@@ -242,7 +255,10 @@ export class AuthService {
     }
 
     // Invalidar tokens de reset previos
-    await this.otpRepository.invalidateAllByUserAndType(user.id, 'PASSWORD_RESET')
+    await this.otpRepository.invalidateAllByUserAndType(
+      user.id,
+      'PASSWORD_RESET',
+    )
 
     // Generar token único y seguro
     const resetToken = crypto.randomBytes(32).toString('hex')
@@ -264,7 +280,7 @@ export class AuthService {
 
     // Enviar email
     await this.emailService.sendResetPasswordEmail({
-      to: user.email,
+      to: user.email.getValue(),
       userName: user.fullName,
       resetLink,
       expiresInMinutes: 30,
@@ -276,7 +292,10 @@ export class AuthService {
    */
   async resetPassword(token: string, newPassword: string): Promise<void> {
     // Buscar token en BD
-    const otp = await this.otpRepository.findByCodeAndType(token, 'PASSWORD_RESET')
+    const otp = await this.otpRepository.findByCodeAndType(
+      token,
+      'PASSWORD_RESET',
+    )
 
     if (!otp || !otp.isValid) {
       throw new UnauthorizedException('Token inválido o expirado')
@@ -326,7 +345,7 @@ export class AuthService {
 
     // Enviar email
     await this.emailService.sendTwoFactorCode({
-      to: user.email,
+      to: user.email.getValue(),
       userName: user.fullName,
       code,
       expiresInMinutes: 10,

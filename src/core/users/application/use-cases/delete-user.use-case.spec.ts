@@ -10,7 +10,8 @@ describe('DeleteUserUseCase', () => {
   let useCase: DeleteUserUseCase
   let userRepository: jest.Mocked<UserRepository>
 
-  const VALID_BCRYPT_HASH = '$2b$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy'
+  const VALID_BCRYPT_HASH =
+    '$2b$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy'
 
   const mockRole: Role = {
     id: 'role-1',
@@ -92,11 +93,13 @@ describe('DeleteUserUseCase', () => {
     it('debe lanzar NotFoundException si el usuario no existe', async () => {
       // Arrange
       userRepository.findByIdOrFail.mockRejectedValue(
-        new NotFoundException('Usuario con ID user-999 no encontrado')
+        new NotFoundException('Usuario con ID user-999 no encontrado'),
       )
 
       // Act & Assert
-      await expect(useCase.execute('user-999')).rejects.toThrow(NotFoundException)
+      await expect(useCase.execute('user-999')).rejects.toThrow(
+        NotFoundException,
+      )
       expect(userRepository.findByIdOrFail).toHaveBeenCalledWith('user-999')
       expect(userRepository.delete).not.toHaveBeenCalled()
     })
@@ -110,7 +113,8 @@ describe('DeleteUserUseCase', () => {
       await useCase.execute('user-1')
 
       // Assert
-      const findCallOrder = userRepository.findByIdOrFail.mock.invocationCallOrder[0]
+      const findCallOrder =
+        userRepository.findByIdOrFail.mock.invocationCallOrder[0]
       const deleteCallOrder = userRepository.delete.mock.invocationCallOrder[0]
       expect(findCallOrder).toBeLessThan(deleteCallOrder)
     })

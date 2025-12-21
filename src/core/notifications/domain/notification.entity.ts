@@ -1,13 +1,27 @@
 import { NotificationType } from './notification-type.enum'
 import { User } from 'src/core/users/domain/user.entity'
 
+/**
+ * Metadata estructurada para notificaciones
+ * Permite almacenar información contextual adicional
+ */
 export interface NotificationMetadata {
-  auditId?: string
-  userId?: string
-  documentId?: string
-  evaluationId?: string
+  /** ID de la entidad relacionada */
+  entityId?: string
+  /** Tipo de entidad */
+  entityType?: 'user' | 'audit' | 'document' | 'task' | 'report' | 'evaluation' | 'other'
+  /** Acción que generó la notificación */
   action?: string
-  [key: string]: any
+  /** ID de auditoría (si aplica) */
+  auditId?: string
+  /** ID de usuario (si aplica) */
+  userId?: string
+  /** ID de documento (si aplica) */
+  documentId?: string
+  /** ID de evaluación (si aplica) */
+  evaluationId?: string
+  /** Cualquier otro dato adicional */
+  [key: string]: unknown
 }
 
 export class Notification {
@@ -92,7 +106,7 @@ export class Notification {
     title: string
     message: string
     link?: string | null
-    metadata?: any
+    metadata?: NotificationMetadata | null
     isRead: boolean
     readAt?: Date | null
     recipientId: string

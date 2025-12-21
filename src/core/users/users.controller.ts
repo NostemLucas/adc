@@ -8,6 +8,7 @@ import {
   Param,
   HttpCode,
   HttpStatus,
+  UploadedFile,
 } from '@nestjs/common'
 import {
   ApiTags,
@@ -23,11 +24,14 @@ import {
   ListUsersUseCase,
   DeleteUserUseCase,
 } from './application/use-cases'
+import { UploadAvatarUseCase } from './application/use-cases/upload-avatar.use-case'
 import { CreateUserDto } from './application/dto/create-user.dto'
 import { UpdateUserDto } from './application/dto/update-user.dto'
 import { UserResponseDto } from './application/dto/user-response.dto'
+import { UploadAvatarResponseDto } from './application/dto/upload-avatar.dto'
 import { Roles } from '../auth/decorators/roles.decorator'
 import { RoleType } from '../roles/constants'
+import { UploadAvatar } from '@shared/file-upload'
 
 @ApiTags('Usuarios')
 @ApiBearerAuth('JWT-auth')
@@ -39,6 +43,7 @@ export class UsersController {
     private readonly getUserUseCase: GetUserUseCase,
     private readonly listUsersUseCase: ListUsersUseCase,
     private readonly deleteUserUseCase: DeleteUserUseCase,
+    private readonly uploadAvatarUseCase: UploadAvatarUseCase,
   ) {}
 
   @Post()
@@ -58,10 +63,10 @@ export class UsersController {
       names: user.names,
       lastNames: user.lastNames,
       fullName: user.fullName,
-      email: user.email,
+      email: user.email.getValue(),
       username: user.username,
-      ci: user.ci,
-      phone: user.phone,
+      ci: user.ci.getValue(),
+      phone: user.phone?.getValue(),
       address: user.address,
       image: user.image,
       status: user.status,
@@ -87,10 +92,10 @@ export class UsersController {
       names: user.names,
       lastNames: user.lastNames,
       fullName: user.fullName,
-      email: user.email,
+      email: user.email.getValue(),
       username: user.username,
-      ci: user.ci,
-      phone: user.phone,
+      ci: user.ci.getValue(),
+      phone: user.phone?.getValue(),
       address: user.address,
       image: user.image,
       status: user.status,
@@ -118,10 +123,10 @@ export class UsersController {
       names: user.names,
       lastNames: user.lastNames,
       fullName: user.fullName,
-      email: user.email,
+      email: user.email.getValue(),
       username: user.username,
-      ci: user.ci,
-      phone: user.phone,
+      ci: user.ci.getValue(),
+      phone: user.phone?.getValue(),
       address: user.address,
       image: user.image,
       status: user.status,
@@ -152,16 +157,39 @@ export class UsersController {
       names: user.names,
       lastNames: user.lastNames,
       fullName: user.fullName,
-      email: user.email,
+      email: user.email.getValue(),
       username: user.username,
-      ci: user.ci,
-      phone: user.phone,
+      ci: user.ci.getValue(),
+      phone: user.phone?.getValue(),
       address: user.address,
       image: user.image,
       status: user.status,
       roles: user.roles.map((r) => r.name),
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
+    }
+  }
+
+  @Post(':id/avatar')
+  @Roles(RoleType.ADMINISTRADOR)
+  @UploadAvatar() // 🔥 Un solo decorador para todo: Multer + Validación + Swagger
+  @ApiOperation({
+    summary: 'Subir o actualizar avatar de usuario',
+    description:
+      'Permite subir una imagen de avatar para un usuario. Si el usuario ya tiene un avatar, este será reemplazado.',
+  })
+  @ApiParam({ name: 'id', description: 'ID del usuario' })
+  @ApiResponse({ status: 404, description: 'Usuario no encontrado' })
+  async uploadAvatar(
+    @Param('id') id: string,
+    @UploadedFile() file: Express.Multer.File,
+  ): Promise<UploadAvatarResponseDto> {
+    const result = await this.uploadAvatarUseCase.execute(id, file)
+
+    return {
+      message: 'Avatar actualizado exitosamente',
+      avatarUrl: result.avatarUrl,
+      avatarPath: result.avatarPath,
     }
   }
 
