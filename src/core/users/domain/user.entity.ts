@@ -4,20 +4,18 @@ import { RoleType, EXCLUSIVE_ROLE } from 'src/core/roles/constants'
 import { LoginPolicy } from './login-policy'
 import { Email, CI, Phone } from './value-objects'
 import {
-  InvalidUserDataException,
   InvalidPasswordException,
   EmptyFieldException,
   MissingRolesException,
   ExclusiveRoleViolationException,
-  RoleNotFoundException,
 } from './exceptions'
 
 export class User {
   // Base fields
   id!: string
-  createdAt!: Date
+  /*   createdAt!: Date
   updatedAt!: Date
-  deletedAt?: Date | null
+  deletedAt?: Date | null */
 
   // User fields
   names!: string
@@ -176,12 +174,12 @@ export class User {
 
     user.names = data.names.trim()
     user.lastNames = data.lastNames.trim()
-    user.email = Email.create(data.email) // ← Crea Value Object
+    user.email = Email.create(data.email)
     user.username = data.username.trim()
     user.password = data.password
-    user.ci = CI.create(data.ci) // ← Crea Value Object
+    user.ci = CI.create(data.ci)
     user.roles = data.roles
-    user.phone = data.phone ? Phone.create(data.phone) : null // ← Crea Value Object
+    user.phone = data.phone ? Phone.create(data.phone) : null
     user.address = data.address?.trim() || null
     user.image = data.image || null
     user.status = UserStatus.ACTIVE
@@ -215,9 +213,9 @@ export class User {
 
     // Base fields
     user.id = data.id
-    user.createdAt = data.createdAt
+    /*     user.createdAt = data.createdAt
     user.updatedAt = data.updatedAt
-    user.deletedAt = data.deletedAt || null
+    user.deletedAt = data.deletedAt || null */
 
     // User fields
     user.names = data.names

@@ -12,7 +12,7 @@ export class Role {
   deletedAt?: Date | null
 
   // Role fields
-  name!: string
+  name!: RoleType
   description?: string | null
   permissions!: Permission[]
 
