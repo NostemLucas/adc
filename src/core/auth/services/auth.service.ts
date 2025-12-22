@@ -2,12 +2,14 @@ import {
   Injectable,
   UnauthorizedException,
   BadRequestException,
+  Inject,
 } from '@nestjs/common'
 import { JwtService } from '@nestjs/jwt'
 import { ConfigService } from '@nestjs/config'
 import * as bcrypt from 'bcrypt'
 import * as crypto from 'crypto'
-import { UserRepository } from 'src/core/users/infrastructure/user.repository'
+import type { IUserRepository } from 'src/core/users/domain/repositories'
+import { USER_REPOSITORY } from 'src/core/users/domain/repositories'
 import { SessionRepository } from 'src/core/sessions/infrastructure/session.repository'
 import { OtpRepository } from '../infrastructure/otp.repository'
 import { User } from 'src/core/users/domain/user.entity'
@@ -27,7 +29,8 @@ import { EmailService } from '@shared/email'
 @Injectable()
 export class AuthService {
   constructor(
-    private readonly userRepository: UserRepository,
+    @Inject(USER_REPOSITORY)
+    private readonly userRepository: IUserRepository,
     private readonly sessionRepository: SessionRepository,
     private readonly otpRepository: OtpRepository,
     private readonly jwtService: JwtService,

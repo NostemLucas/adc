@@ -1,5 +1,6 @@
-import { Injectable } from '@nestjs/common'
-import { UserRepository } from '../../infrastructure/user.repository'
+import { Injectable, Inject } from '@nestjs/common'
+import type { IUserRepository } from '../repositories'
+import { USER_REPOSITORY } from '../repositories'
 import {
   DuplicateEmailException,
   DuplicateUsernameException,
@@ -18,7 +19,10 @@ import {
  */
 @Injectable()
 export class UserUniquenessValidator {
-  constructor(private readonly userRepository: UserRepository) {}
+  constructor(
+    @Inject(USER_REPOSITORY)
+    private readonly userRepository: IUserRepository,
+  ) {}
 
   /**
    * Valida que email, username y CI sean únicos en el sistema.

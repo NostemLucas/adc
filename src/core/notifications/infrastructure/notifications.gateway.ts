@@ -6,9 +6,10 @@ import {
   OnGatewayInit,
 } from '@nestjs/websockets'
 import { Server, Socket } from 'socket.io'
-import { Injectable, Logger, UnauthorizedException } from '@nestjs/common'
+import { Injectable, Logger, UnauthorizedException, Inject } from '@nestjs/common'
 import { JwtService } from '@nestjs/jwt'
-import { UserRepository } from 'src/core/users/infrastructure/user.repository'
+import type { IUserRepository } from 'src/core/users/domain/repositories'
+import { USER_REPOSITORY } from 'src/core/users/domain/repositories'
 import { NotificationResponseDto } from '../application/dto/notification-response.dto'
 
 @Injectable()
@@ -29,7 +30,8 @@ export class NotificationsGateway
 
   constructor(
     private readonly jwtService: JwtService,
-    private readonly userRepository: UserRepository,
+    @Inject(USER_REPOSITORY)
+    private readonly userRepository: IUserRepository,
   ) {}
 
   afterInit(server: Server) {

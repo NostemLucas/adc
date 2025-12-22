@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common'
+import { Injectable, Inject } from '@nestjs/common'
 import { NotificationsGateway } from '../../infrastructure/notifications.gateway'
 import { CreateNotificationUseCase } from '../use-cases/create-notification.use-case'
 import { NotificationType } from '../../domain/notification-type.enum'
@@ -7,7 +7,8 @@ import {
   Notification,
   NotificationMetadata,
 } from '../../domain/notification.entity'
-import { UserRepository } from 'src/core/users/infrastructure/user.repository'
+import type { IUserRepository } from 'src/core/users/domain/repositories'
+import { USER_REPOSITORY } from 'src/core/users/domain/repositories'
 
 export interface NotifyAdminsParams {
   title: string
@@ -40,7 +41,8 @@ export class NotificationBroadcastService {
   constructor(
     private readonly createNotificationUseCase: CreateNotificationUseCase,
     private readonly notificationsGateway: NotificationsGateway,
-    private readonly userRepository: UserRepository,
+    @Inject(USER_REPOSITORY)
+    private readonly userRepository: IUserRepository,
   ) {}
 
   private toResponseDto(notification: Notification): NotificationResponseDto {

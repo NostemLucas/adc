@@ -63,7 +63,10 @@ async function bootstrap() {
   const port = Number(process.env.PORT) || 3000
 
   // Log de conexión a la base de datos
-  logger.database.logConnection('connect', process.env.DATABASE_URL?.split('@')[1]?.split('/')[1])
+  logger.database.logConnection(
+    'connect',
+    process.env.DATABASE_URL?.split('@')[1]?.split('/')[1],
+  )
 
   await app.listen(port)
 
@@ -96,7 +99,9 @@ async function bootstrap() {
   // Handler de errores no capturados
   process.on('unhandledRejection', (reason: Error) => {
     logger.startup.printError(reason, 'Unhandled Rejection')
-    logger.exception.logUnhandledException(reason, { type: 'unhandledRejection' })
+    logger.exception.logUnhandledException(reason, {
+      type: 'unhandledRejection',
+    })
   })
 
   process.on('uncaughtException', (error: Error) => {

@@ -1,5 +1,6 @@
-import { Injectable } from '@nestjs/common'
-import { UserRepository } from '../../infrastructure/user.repository'
+import { Injectable, Inject } from '@nestjs/common'
+import type { IUserRepository } from '../../domain/repositories'
+import { USER_REPOSITORY } from '../../domain/repositories'
 import { FileStorageService } from '@shared/file-upload'
 
 /**
@@ -8,7 +9,8 @@ import { FileStorageService } from '@shared/file-upload'
 @Injectable()
 export class UploadAvatarUseCase {
   constructor(
-    private readonly userRepository: UserRepository,
+    @Inject(USER_REPOSITORY)
+    private readonly userRepository: IUserRepository,
     private readonly fileStorageService: FileStorageService,
   ) {}
 

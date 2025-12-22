@@ -105,4 +105,5 @@ export interface IUserRepository {
    * @returns True if exists, false otherwise
    */
   existsByCi(ci: string, excludeUserId?: string): Promise<boolean>
+  update(user: User): Promise<User>
 }
