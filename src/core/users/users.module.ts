@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common'
 import { UsersController } from './users.controller'
 import { UserRepository } from './infrastructure/user.repository'
+import { USER_REPOSITORY } from './domain/repositories'
 import { RoleRepository } from '../roles/infrastructure/role.repository'
 import {
   CreateUserUseCase,
@@ -15,8 +16,11 @@ import { UserUniquenessValidator } from './domain/services'
 @Module({
   controllers: [UsersController],
   providers: [
-    // Infrastructure
-    UserRepository,
+    // Infrastructure - Repository with DI token
+    {
+      provide: USER_REPOSITORY,
+      useClass: UserRepository,
+    },
     RoleRepository,
 
     // Domain Services
@@ -30,6 +34,6 @@ import { UserUniquenessValidator } from './domain/services'
     DeleteUserUseCase,
     UploadAvatarUseCase,
   ],
-  exports: [UserRepository],
+  exports: [USER_REPOSITORY],
 })
 export class UsersModule {}

@@ -76,9 +76,7 @@ export class NotificationBroadcastService {
       )
 
       // Emit to admin room (all admins)
-      this.notificationsGateway.emitToAdmins(
-        this.toResponseDto(notification),
-      )
+      this.notificationsGateway.emitToAdmins(this.toResponseDto(notification))
     }
   }
 

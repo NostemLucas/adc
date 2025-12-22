@@ -1,19 +1,21 @@
 import { Test, TestingModule } from '@nestjs/testing'
 import { CreateUserUseCase } from './create-user.use-case'
-import { UserRepository } from '../../infrastructure/user.repository'
+import { IUserRepository, USER_REPOSITORY } from '../../domain/repositories'
 import { RoleRepository } from '../../../roles/infrastructure/role.repository'
 import { CreateUserDto } from '../dto/create-user.dto'
 import { User } from '../../domain/user.entity'
 import { Role } from '../../../roles/domain/role.entity'
 import { UserStatus } from '@prisma/client'
+import { UserUniquenessValidator } from '../../domain/services'
 import * as bcrypt from 'bcrypt'
 
 jest.mock('bcrypt')
 
 describe('CreateUserUseCase', () => {
   let useCase: CreateUserUseCase
-  let userRepository: jest.Mocked<UserRepository>
+  let userRepository: jest.Mocked<IUserRepository>
   let roleRepository: jest.Mocked<RoleRepository>
+  let uniquenessValidator: jest.Mocked<UserUniquenessValidator>
 
   // Hash bcrypt válido para testing (password123)
   const VALID_BCRYPT_HASH = '$2b$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy'
@@ -58,33 +60,48 @@ describe('CreateUserUseCase', () => {
   }
 
   beforeEach(async () => {
-    const mockUserRepository = {
-      create: jest.fn(),
+    // Mock repository using interface (easy to test!)
+    const mockUserRepository: Partial<IUserRepository> = {
+      save: jest.fn(),
       findByEmail: jest.fn(),
       findByUsername: jest.fn(),
+      findByCi: jest.fn(),
+      existsByEmail: jest.fn(),
+      existsByUsername: jest.fn(),
+      existsByCi: jest.fn(),
     }
 
     const mockRoleRepository = {
       findByIds: jest.fn(),
     }
 
+    const mockUniquenessValidator = {
+      validateForCreate: jest.fn(),
+      validateForUpdate: jest.fn(),
+    }
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         CreateUserUseCase,
         {
-          provide: UserRepository,
+          provide: USER_REPOSITORY, // Using injection token!
           useValue: mockUserRepository,
         },
         {
           provide: RoleRepository,
           useValue: mockRoleRepository,
         },
+        {
+          provide: UserUniquenessValidator,
+          useValue: mockUniquenessValidator,
+        },
       ],
     }).compile()
 
     useCase = module.get<CreateUserUseCase>(CreateUserUseCase)
-    userRepository = module.get(UserRepository)
+    userRepository = module.get(USER_REPOSITORY)
     roleRepository = module.get(RoleRepository)
+    uniquenessValidator = module.get(UserUniquenessValidator)
   })
 
   afterEach(() => {
@@ -105,48 +122,56 @@ describe('CreateUserUseCase', () => {
 
     it('debe crear un usuario exitosamente', async () => {
       // Arrange
+      uniquenessValidator.validateForCreate.mockResolvedValue(undefined)
       roleRepository.findByIds.mockResolvedValue([mockRole])
       ;(bcrypt.hash as jest.Mock).mockResolvedValue(VALID_BCRYPT_HASH)
-      userRepository.create.mockResolvedValue(mockUser)
+      userRepository.save.mockResolvedValue(mockUser)
 
       // Act
       const result = await useCase.execute(createUserDto)
 
       // Assert
+      expect(uniquenessValidator.validateForCreate).toHaveBeenCalledWith(
+        'juan@example.com',
+        'juanp',
+        '12345678',
+      )
       expect(roleRepository.findByIds).toHaveBeenCalledWith(['role-1'])
       expect(bcrypt.hash).toHaveBeenCalledWith('password123', 10)
-      expect(userRepository.create).toHaveBeenCalled()
+      expect(userRepository.save).toHaveBeenCalled()
       expect(result).toEqual(mockUser)
     })
 
     it('debe hashear la contraseña antes de crear el usuario', async () => {
       // Arrange
+      uniquenessValidator.validateForCreate.mockResolvedValue(undefined)
       roleRepository.findByIds.mockResolvedValue([mockRole])
       ;(bcrypt.hash as jest.Mock).mockResolvedValue(VALID_BCRYPT_HASH)
-      userRepository.create.mockResolvedValue(mockUser)
+      userRepository.save.mockResolvedValue(mockUser)
 
       // Act
       await useCase.execute(createUserDto)
 
       // Assert
       expect(bcrypt.hash).toHaveBeenCalledWith('password123', 10)
-      const createCallArg = userRepository.create.mock.calls[0][0]
-      expect(createCallArg.password).toBe(VALID_BCRYPT_HASH)
+      const saveCallArg = userRepository.save.mock.calls[0][0]
+      expect(saveCallArg.password).toBe(VALID_BCRYPT_HASH)
     })
 
     it('debe asignar los roles encontrados al usuario', async () => {
       // Arrange
       const roles = [mockRole]
+      uniquenessValidator.validateForCreate.mockResolvedValue(undefined)
       roleRepository.findByIds.mockResolvedValue(roles)
       ;(bcrypt.hash as jest.Mock).mockResolvedValue(VALID_BCRYPT_HASH)
-      userRepository.create.mockResolvedValue(mockUser)
+      userRepository.save.mockResolvedValue(mockUser)
 
       // Act
       await useCase.execute(createUserDto)
 
       // Assert
-      const createCallArg = userRepository.create.mock.calls[0][0]
-      expect(createCallArg.roles).toEqual(roles)
+      const saveCallArg = userRepository.save.mock.calls[0][0]
+      expect(saveCallArg.roles).toEqual(roles)
     })
 
     it('debe fallar si no encuentra roles', async () => {
@@ -160,12 +185,15 @@ describe('CreateUserUseCase', () => {
 
     it('debe propagar errores del repositorio', async () => {
       // Arrange
+      uniquenessValidator.validateForCreate.mockResolvedValue(undefined)
       roleRepository.findByIds.mockResolvedValue([mockRole])
       ;(bcrypt.hash as jest.Mock).mockResolvedValue(VALID_BCRYPT_HASH)
-      userRepository.create.mockRejectedValue(new Error('Database error'))
+      userRepository.save.mockRejectedValue(new Error('Database error'))
 
       // Act & Assert
-      await expect(useCase.execute(createUserDto)).rejects.toThrow('Database error')
+      await expect(useCase.execute(createUserDto)).rejects.toThrow(
+        'Database error',
+      )
     })
   })
 })

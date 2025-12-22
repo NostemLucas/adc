@@ -15,7 +15,6 @@ import {
  * - Es reutilizable entre múltiples Use Cases
  * - No tiene estado (stateless)
  *
- * @see https://enterprisecraftsmanship.com/posts/domain-services-in-ddd/
  */
 @Injectable()
 export class UserUniquenessValidator {

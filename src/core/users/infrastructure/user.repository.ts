@@ -7,6 +7,7 @@ import {
 import { BaseRepository, TransactionContext } from '@shared/database'
 import { RequestContext } from '@shared/context'
 import { User } from '../domain/user.entity'
+import { IUserRepository } from '../domain/repositories'
 import { Role } from 'src/core/roles/domain/role.entity'
 import { Permission } from 'src/core/permissions/domain/permission.entity'
 import { UserStatusMapper } from './user-status.mapper'
@@ -19,9 +20,15 @@ type PrismaUserWithRoles = PrismaUser & { roles?: PrismaRoleWithPermissions[] }
 /**
  * UserRepository - Con soporte de transacciones y auditoría automática mediante contexto CLS
  * Extiende BaseRepository para participar automáticamente en transacciones y auditoría
+ *
+ * Implements IUserRepository interface (port) defined in domain layer.
+ * This follows the Dependency Inversion Principle.
  */
 @Injectable()
-export class UserRepository extends BaseRepository {
+export class UserRepository
+  extends BaseRepository
+  implements IUserRepository
+{
   constructor(
     transactionContext: TransactionContext,
     requestContext: RequestContext,
@@ -336,5 +343,62 @@ export class UserRepository extends BaseRepository {
     })
 
     return users.map((user) => this.toDomain(user))
+  }
+
+  /**
+   * Check if email exists
+   * @param email Email to check
+   * @param excludeUserId Optional user ID to exclude (for updates)
+   * @returns True if exists, false otherwise
+   */
+  async existsByEmail(email: string, excludeUserId?: string): Promise<boolean> {
+    const count = await this.prisma.user.count({
+      where: {
+        email,
+        id: excludeUserId ? { not: excludeUserId } : undefined,
+        deletedAt: null,
+      },
+    })
+
+    return count > 0
+  }
+
+  /**
+   * Check if username exists
+   * @param username Username to check
+   * @param excludeUserId Optional user ID to exclude (for updates)
+   * @returns True if exists, false otherwise
+   */
+  async existsByUsername(
+    username: string,
+    excludeUserId?: string,
+  ): Promise<boolean> {
+    const count = await this.prisma.user.count({
+      where: {
+        username,
+        id: excludeUserId ? { not: excludeUserId } : undefined,
+        deletedAt: null,
+      },
+    })
+
+    return count > 0
+  }
+
+  /**
+   * Check if CI exists
+   * @param ci CI to check
+   * @param excludeUserId Optional user ID to exclude (for updates)
+   * @returns True if exists, false otherwise
+   */
+  async existsByCi(ci: string, excludeUserId?: string): Promise<boolean> {
+    const count = await this.prisma.user.count({
+      where: {
+        ci,
+        id: excludeUserId ? { not: excludeUserId } : undefined,
+        deletedAt: null,
+      },
+    })
+
+    return count > 0
   }
 }

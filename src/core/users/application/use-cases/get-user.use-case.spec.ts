@@ -10,7 +10,8 @@ describe('GetUserUseCase', () => {
   let useCase: GetUserUseCase
   let userRepository: jest.Mocked<UserRepository>
 
-  const VALID_BCRYPT_HASH = '$2b$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy'
+  const VALID_BCRYPT_HASH =
+    '$2b$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy'
 
   const mockRole: Role = {
     id: 'role-1',
@@ -94,9 +95,11 @@ describe('GetUserUseCase', () => {
       userRepository.findById.mockResolvedValue(null)
 
       // Act & Assert
-      await expect(useCase.execute('user-999')).rejects.toThrow(NotFoundException)
       await expect(useCase.execute('user-999')).rejects.toThrow(
-        'Usuario con ID user-999 no encontrado'
+        NotFoundException,
+      )
+      await expect(useCase.execute('user-999')).rejects.toThrow(
+        'Usuario con ID user-999 no encontrado',
       )
       expect(userRepository.findById).toHaveBeenCalledWith('user-999')
     })

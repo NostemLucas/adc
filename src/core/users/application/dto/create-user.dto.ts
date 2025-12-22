@@ -1,53 +1,56 @@
 import { ApiProperty } from '@nestjs/swagger'
 import {
-  IsEmail,
-  IsNotEmpty,
-  IsString,
-  MinLength,
-  IsArray,
-  IsOptional,
-} from 'class-validator'
+  IsRequired,
+  IsText,
+  IsEmailAddress,
+  IsUsername,
+  MinTextLength,
+  IsBolivianCI,
+  IsArrayField,
+  IsNullable,
+  IsBolivianPhone,
+} from '@shared/validators'
+import { IsString } from 'class-validator'
 
 export class CreateUserDto {
   @ApiProperty({ example: 'Juan', description: 'Nombres del usuario' })
-  @IsNotEmpty()
-  @IsString()
+  @IsRequired('Los nombres')
+  @IsText('Los nombres')
   names!: string
 
   @ApiProperty({
     example: 'Pérez García',
     description: 'Apellidos del usuario',
   })
-  @IsNotEmpty()
-  @IsString()
+  @IsRequired('Los apellidos')
+  @IsText('Los apellidos')
   lastNames!: string
 
   @ApiProperty({
     example: 'juan.perez@example.com',
     description: 'Email del usuario',
   })
-  @IsNotEmpty()
-  @IsEmail()
+  @IsRequired('El email')
+  @IsEmailAddress('El email')
   email!: string
 
   @ApiProperty({ example: 'juanperez', description: 'Nombre de usuario' })
-  @IsNotEmpty()
-  @IsString()
+  @IsRequired('El nombre de usuario')
+  @IsUsername('El nombre de usuario')
   username!: string
 
   @ApiProperty({
-    example: 'password123',
+    example: 'Password123',
     description: 'Contraseña',
     minLength: 6,
   })
-  @IsNotEmpty()
-  @IsString()
-  @MinLength(6)
+  @IsRequired('La contraseña')
+  @MinTextLength(6, 'La contraseña')
   password!: string
 
   @ApiProperty({ example: '12345678', description: 'Cédula de identidad' })
-  @IsNotEmpty()
-  @IsString()
+  @IsRequired('La cédula de identidad')
+  @IsBolivianCI('La cédula de identidad')
   ci!: string
 
   @ApiProperty({
@@ -55,23 +58,26 @@ export class CreateUserDto {
     description: 'IDs de los roles del usuario',
     type: [String],
   })
-  @IsNotEmpty()
-  @IsArray()
-  @IsString({ each: true })
+  @IsRequired('Los roles')
+  @IsArrayField('Los roles')
+  @IsString({
+    each: true,
+    message: 'Cada rol debe ser un identificador válido',
+  })
   roleIds!: string[]
 
-  @ApiProperty({ example: '591-12345678', required: false })
-  @IsOptional()
-  @IsString()
+  @ApiProperty({ example: '70123456', required: false })
+  @IsNullable()
+  @IsBolivianPhone('El teléfono')
   phone?: string
 
   @ApiProperty({ example: 'Av. Ejemplo #123', required: false })
-  @IsOptional()
-  @IsString()
+  @IsNullable()
+  @IsText('La dirección')
   address?: string
 
   @ApiProperty({ example: 'https://example.com/image.jpg', required: false })
-  @IsOptional()
-  @IsString()
+  @IsNullable()
+  @IsText('La imagen')
   image?: string
 }

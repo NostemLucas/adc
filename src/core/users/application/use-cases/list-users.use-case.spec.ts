@@ -9,7 +9,8 @@ describe('ListUsersUseCase', () => {
   let useCase: ListUsersUseCase
   let userRepository: jest.Mocked<UserRepository>
 
-  const VALID_BCRYPT_HASH = '$2b$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy'
+  const VALID_BCRYPT_HASH =
+    '$2b$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy'
 
   const mockRole: Role = {
     id: 'role-1',
@@ -148,7 +149,9 @@ describe('ListUsersUseCase', () => {
 
     it('debe propagar errores del repositorio', async () => {
       // Arrange
-      userRepository.findActiveUsers.mockRejectedValue(new Error('Database error'))
+      userRepository.findActiveUsers.mockRejectedValue(
+        new Error('Database error'),
+      )
 
       // Act & Assert
       await expect(useCase.execute()).rejects.toThrow('Database error')

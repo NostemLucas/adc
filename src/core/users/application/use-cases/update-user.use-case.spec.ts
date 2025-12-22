@@ -113,7 +113,9 @@ describe('UpdateUserUseCase', () => {
 
     it('debe lanzar NotFoundException si el usuario no existe', async () => {
       // Arrange
-      userRepository.findByIdOrFail.mockRejectedValue(new NotFoundException('Usuario no encontrado'))
+      userRepository.findByIdOrFail.mockRejectedValue(
+        new NotFoundException('Usuario no encontrado'),
+      )
 
       // Act & Assert
       await expect(useCase.execute('user-999', updateUserDto)).rejects.toThrow(

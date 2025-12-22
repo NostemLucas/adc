@@ -5,10 +5,13 @@ import { ConfigService } from '@nestjs/config'
 import { AuthService } from './auth.service'
 import { UserRepository } from '../../users/infrastructure/user.repository'
 import { SessionRepository } from '../../sessions/infrastructure/session.repository'
-import { User } from '../../users/domain/user.entity'
 import { Session } from '../../sessions/domain/session.entity'
-import { Role } from '../../roles/domain/role.entity'
-import { UserStatus } from '@prisma/client'
+import { OtpRepository } from '../infrastructure/otp.repository'
+import { EmailService } from '@shared/email'
+import {
+  createMockUser,
+  VALID_BCRYPT_HASH,
+} from '../../users/test-helpers'
 import * as bcrypt from 'bcrypt'
 
 jest.mock('bcrypt')
@@ -17,49 +20,12 @@ describe('AuthService', () => {
   let service: AuthService
   let userRepository: jest.Mocked<UserRepository>
   let sessionRepository: jest.Mocked<SessionRepository>
+  let otpRepository: jest.Mocked<OtpRepository>
   let jwtService: jest.Mocked<JwtService>
   let configService: jest.Mocked<ConfigService>
+  let emailService: jest.Mocked<EmailService>
 
-  const VALID_BCRYPT_HASH = '$2b$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy'
-
-  const mockRole: Role = {
-    id: 'role-1',
-    name: 'ADMINISTRADOR',
-    description: 'Administrador',
-    createdAt: new Date(),
-    updatedAt: new Date(),
-    deletedAt: null,
-  }
-
-  const mockUser: User = {
-    id: 'user-1',
-    createdAt: new Date(),
-    updatedAt: new Date(),
-    deletedAt: null,
-    names: 'Juan',
-    lastNames: 'Pérez',
-    email: 'juan@example.com',
-    phone: '12345678',
-    username: 'juanp',
-    password: VALID_BCRYPT_HASH,
-    ci: '12345678',
-    status: UserStatus.ACTIVE,
-    failedLoginAttempts: 0,
-    lockUntil: null,
-    roles: [mockRole],
-    get fullName() {
-      return `${this.names} ${this.lastNames}`
-    },
-    get isLocked() {
-      return this.lockUntil ? new Date() < this.lockUntil : false
-    },
-    get isActive() {
-      return this.status === UserStatus.ACTIVE && !this.isLocked
-    },
-    canAttemptLogin: jest.fn().mockReturnValue(true),
-    incrementFailedAttempts: jest.fn(),
-    resetLoginAttempts: jest.fn(),
-  }
+  const mockUser = createMockUser()
 
   const mockSession: Session = {
     id: 'session-1',
@@ -76,6 +42,9 @@ describe('AuthService', () => {
     get isValid() {
       return this.isActive && new Date() < this.expiresAt
     },
+    get isExpired() {
+      return new Date() >= this.expiresAt
+    },
     invalidate: jest.fn(),
     updateLastUsed: jest.fn(),
   }
@@ -85,6 +54,7 @@ describe('AuthService', () => {
       findByUsernameOrEmail: jest.fn(),
       findById: jest.fn(),
       findByIdOrFail: jest.fn(),
+      findByEmail: jest.fn(),
       save: jest.fn(),
     }
 
@@ -96,6 +66,13 @@ describe('AuthService', () => {
       deleteExpiredSessions: jest.fn(),
     }
 
+    const mockOtpRepository = {
+      create: jest.fn(),
+      save: jest.fn(),
+      findByCodeAndType: jest.fn(),
+      invalidateAllByUserAndType: jest.fn(),
+    }
+
     const mockJwtService = {
       signAsync: jest.fn(),
       verify: jest.fn(),
@@ -103,6 +80,11 @@ describe('AuthService', () => {
 
     const mockConfigService = {
       get: jest.fn(),
+    }
+
+    const mockEmailService = {
+      sendResetPasswordEmail: jest.fn(),
+      sendTwoFactorCode: jest.fn(),
     }
 
     const module: TestingModule = await Test.createTestingModule({
@@ -117,6 +99,10 @@ describe('AuthService', () => {
           useValue: mockSessionRepository,
         },
         {
+          provide: OtpRepository,
+          useValue: mockOtpRepository,
+        },
+        {
           provide: JwtService,
           useValue: mockJwtService,
         },
@@ -124,14 +110,20 @@ describe('AuthService', () => {
           provide: ConfigService,
           useValue: mockConfigService,
         },
+        {
+          provide: EmailService,
+          useValue: mockEmailService,
+        },
       ],
     }).compile()
 
     service = module.get<AuthService>(AuthService)
     userRepository = module.get(UserRepository)
     sessionRepository = module.get(SessionRepository)
+    otpRepository = module.get(OtpRepository)
     jwtService = module.get(JwtService)
     configService = module.get(ConfigService)
+    emailService = module.get(EmailService)
 
     // Mock de ConfigService
     configService.get.mockImplementation((key: string, defaultValue?: any) => {
@@ -160,11 +152,19 @@ describe('AuthService', () => {
       userRepository.save.mockResolvedValue(mockUser)
 
       // Act
-      const result = await service.login('juanp', 'password123', '192.168.1.1', 'Mozilla/5.0')
+      const result = await service.login(
+        'juanp',
+        'password123',
+        '192.168.1.1',
+        'Mozilla/5.0',
+      )
 
       // Assert
       expect(userRepository.findByUsernameOrEmail).toHaveBeenCalledWith('juanp')
-      expect(bcrypt.compare).toHaveBeenCalledWith('password123', VALID_BCRYPT_HASH)
+      expect(bcrypt.compare).toHaveBeenCalledWith(
+        'password123',
+        VALID_BCRYPT_HASH,
+      )
       expect(mockUser.resetLoginAttempts).toHaveBeenCalled()
       expect(result.user.id).toBe('user-1')
       expect(result.tokens.accessToken).toBe('access-token')
@@ -176,9 +176,9 @@ describe('AuthService', () => {
       userRepository.findByUsernameOrEmail.mockResolvedValue(null)
 
       // Act & Assert
-      await expect(
-        service.login('noexiste', 'password123'),
-      ).rejects.toThrow(UnauthorizedException)
+      await expect(service.login('noexiste', 'password123')).rejects.toThrow(
+        UnauthorizedException,
+      )
     })
 
     it('debe incrementar intentos fallidos con contraseña incorrecta', async () => {
@@ -188,9 +188,9 @@ describe('AuthService', () => {
       userRepository.save.mockResolvedValue(mockUser)
 
       // Act & Assert
-      await expect(
-        service.login('juanp', 'wrong-password'),
-      ).rejects.toThrow(UnauthorizedException)
+      await expect(service.login('juanp', 'wrong-password')).rejects.toThrow(
+        UnauthorizedException,
+      )
       expect(mockUser.incrementFailedAttempts).toHaveBeenCalled()
       expect(userRepository.save).toHaveBeenCalled()
     })
@@ -208,9 +208,9 @@ describe('AuthService', () => {
       userRepository.findByUsernameOrEmail.mockResolvedValue(lockedUser as any)
 
       // Act & Assert
-      await expect(
-        service.login('juanp', 'password123'),
-      ).rejects.toThrow(UnauthorizedException)
+      await expect(service.login('juanp', 'password123')).rejects.toThrow(
+        UnauthorizedException,
+      )
     })
 
     it('debe crear una sesión después de login exitoso', async () => {
@@ -251,7 +251,9 @@ describe('AuthService', () => {
 
       // Assert
       expect(jwtService.verify).toHaveBeenCalled()
-      expect(sessionRepository.findByRefreshToken).toHaveBeenCalledWith('old-refresh-token')
+      expect(sessionRepository.findByRefreshToken).toHaveBeenCalledWith(
+        'old-refresh-token',
+      )
       expect(result.accessToken).toBe('new-access-token')
       expect(result.refreshToken).toBe('new-refresh-token')
     })
@@ -263,9 +265,9 @@ describe('AuthService', () => {
       })
 
       // Act & Assert
-      await expect(
-        service.refreshTokens('invalid-token'),
-      ).rejects.toThrow(UnauthorizedException)
+      await expect(service.refreshTokens('invalid-token')).rejects.toThrow(
+        UnauthorizedException,
+      )
     })
 
     it('debe lanzar UnauthorizedException si la sesión no existe', async () => {
@@ -275,9 +277,9 @@ describe('AuthService', () => {
       sessionRepository.findByRefreshToken.mockResolvedValue(null)
 
       // Act & Assert
-      await expect(
-        service.refreshTokens('refresh-token'),
-      ).rejects.toThrow(UnauthorizedException)
+      await expect(service.refreshTokens('refresh-token')).rejects.toThrow(
+        UnauthorizedException,
+      )
     })
 
     it('debe invalidar sesión si el usuario está inactivo', async () => {
@@ -294,10 +296,12 @@ describe('AuthService', () => {
       sessionRepository.invalidateSession.mockResolvedValue()
 
       // Act & Assert
-      await expect(
-        service.refreshTokens('refresh-token'),
-      ).rejects.toThrow(UnauthorizedException)
-      expect(sessionRepository.invalidateSession).toHaveBeenCalledWith('session-1')
+      await expect(service.refreshTokens('refresh-token')).rejects.toThrow(
+        UnauthorizedException,
+      )
+      expect(sessionRepository.invalidateSession).toHaveBeenCalledWith(
+        'session-1',
+      )
     })
   })
 
@@ -311,7 +315,9 @@ describe('AuthService', () => {
       await service.logout('user-1', 'refresh-token')
 
       // Assert
-      expect(sessionRepository.findByRefreshToken).toHaveBeenCalledWith('refresh-token')
+      expect(sessionRepository.findByRefreshToken).toHaveBeenCalledWith(
+        'refresh-token',
+      )
       expect(mockSession.invalidate).toHaveBeenCalled()
       expect(sessionRepository.save).toHaveBeenCalled()
     })
@@ -321,7 +327,9 @@ describe('AuthService', () => {
       sessionRepository.findByRefreshToken.mockResolvedValue(null)
 
       // Act & Assert
-      await expect(service.logout('user-1', 'refresh-token')).resolves.not.toThrow()
+      await expect(
+        service.logout('user-1', 'refresh-token'),
+      ).resolves.not.toThrow()
     })
   })
 
@@ -334,7 +342,9 @@ describe('AuthService', () => {
       await service.logoutAll('user-1')
 
       // Assert
-      expect(sessionRepository.invalidateAllByUserId).toHaveBeenCalledWith('user-1')
+      expect(sessionRepository.invalidateAllByUserId).toHaveBeenCalledWith(
+        'user-1',
+      )
     })
   })
 })

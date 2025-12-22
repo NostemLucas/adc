@@ -8,7 +8,7 @@ import { AuthService } from './services/auth.service'
 import { JwtStrategy } from './strategies/jwt.strategy'
 import { JwtRefreshStrategy } from './strategies/jwt-refresh.strategy'
 import { UserRepository } from '../users/infrastructure/user.repository'
-import { SessionRepository} from '../sessions/infrastructure/session.repository'
+import { SessionRepository } from '../sessions/infrastructure/session.repository'
 import { OtpRepository } from './infrastructure/otp.repository'
 
 @Module({

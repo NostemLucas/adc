@@ -1,6 +1,7 @@
-import { Injectable } from '@nestjs/common'
+import { Injectable, Inject } from '@nestjs/common'
 import * as bcrypt from 'bcrypt'
-import { UserRepository } from '../../infrastructure/user.repository'
+import type { IUserRepository } from '../../domain/repositories'
+import { USER_REPOSITORY } from '../../domain/repositories'
 import { RoleRepository } from '../../../roles/infrastructure/role.repository'
 import { User } from '../../domain/user.entity'
 import { CreateUserDto } from '../dto/create-user.dto'
@@ -10,7 +11,8 @@ import { UserUniquenessValidator } from '../../domain/services'
 @Injectable()
 export class CreateUserUseCase {
   constructor(
-    private readonly userRepository: UserRepository,
+    @Inject(USER_REPOSITORY)
+    private readonly userRepository: IUserRepository,
     private readonly roleRepository: RoleRepository,
     private readonly uniquenessValidator: UserUniquenessValidator,
   ) {}
@@ -48,6 +50,6 @@ export class CreateUserUseCase {
     })
 
     // 5. Persistir
-    return await this.userRepository.create(user)
+    return await this.userRepository.save(user)
   }
 }
