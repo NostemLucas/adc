@@ -9,13 +9,15 @@ import {
   MissingRolesException,
   ExclusiveRoleViolationException,
 } from './exceptions'
+import { AggregateRoot } from '@shared/domain/aggregate-root.base'
+import { UserCreatedEvent, UserUpdatedEvent, UserDeletedEvent } from './events'
 
-export class User {
+export class User extends AggregateRoot {
   // Base fields
   id!: string
-  /*   createdAt!: Date
+  createdAt!: Date
   updatedAt!: Date
-  deletedAt?: Date | null */
+  deletedAt?: Date | null
 
   // User fields
   names!: string
@@ -35,7 +37,9 @@ export class User {
   roles: Role[] = []
 
   // Constructor privado para forzar uso de factory methods
-  private constructor() {}
+  private constructor() {
+    super()
+  }
 
   // ===== GETTERS =====
   get fullName(): string {
@@ -186,6 +190,9 @@ export class User {
     user.failedLoginAttempts = 0
     user.lockUntil = null
 
+    // Nota: El evento se emitirá después de persistir (cuando ya tengamos el ID)
+    // Ver método markAsCreated()
+
     return user
   }
 
@@ -213,9 +220,9 @@ export class User {
 
     // Base fields
     user.id = data.id
-    /*     user.createdAt = data.createdAt
+    user.createdAt = data.createdAt
     user.updatedAt = data.updatedAt
-    user.deletedAt = data.deletedAt || null */
+    user.deletedAt = data.deletedAt || null
 
     // User fields
     user.names = data.names
@@ -297,6 +304,55 @@ export class User {
       User.validateRoles(data.roles)
       this.roles = data.roles
     }
+
+    // Emitir evento de actualización
+    const updatedFields = Object.keys(data)
+    this.addDomainEvent(
+      new UserUpdatedEvent(
+        this.id,
+        this.email.getValue(),
+        this.username,
+        this.fullName,
+        updatedFields,
+        new Date(),
+      ),
+    )
+  }
+
+  // ===== MÉTODOS PARA EVENTOS DE DOMINIO =====
+
+  /**
+   * Marca el usuario como creado y emite el evento UserCreatedEvent.
+   * Se debe llamar después de persistir el usuario (cuando ya tiene ID y timestamps).
+   */
+  markAsCreated(): void {
+    this.addDomainEvent(
+      new UserCreatedEvent(
+        this.id,
+        this.email.getValue(),
+        this.username,
+        this.fullName,
+        this.roles.map((r) => r.name),
+        this.createdAt,
+      ),
+    )
+  }
+
+  /**
+   * Marca el usuario como eliminado (soft delete) y emite el evento UserDeletedEvent.
+   */
+  markAsDeleted(): void {
+    this.deactivate()
+    this.deletedAt = new Date()
+
+    this.addDomainEvent(
+      new UserDeletedEvent(
+        this.id,
+        this.email.getValue(),
+        this.username,
+        this.deletedAt,
+      ),
+    )
   }
 
   // ===== VALIDACIONES PRIVADAS =====

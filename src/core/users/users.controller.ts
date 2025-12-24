@@ -17,14 +17,7 @@ import {
   ApiBearerAuth,
   ApiParam,
 } from '@nestjs/swagger'
-import {
-  CreateUserUseCase,
-  UpdateUserUseCase,
-  GetUserUseCase,
-  ListUsersUseCase,
-  DeleteUserUseCase,
-} from './application/use-cases'
-import { UploadAvatarUseCase } from './application/use-cases/upload-avatar.use-case'
+import { CommandBus, QueryBus } from '@nestjs/cqrs'
 import { CreateUserDto } from './application/dto/create-user.dto'
 import { UpdateUserDto } from './application/dto/update-user.dto'
 import { UserResponseDto } from './application/dto/user-response.dto'
@@ -32,18 +25,26 @@ import { UploadAvatarResponseDto } from './application/dto/upload-avatar.dto'
 import { Roles } from '../auth/decorators/roles.decorator'
 import { RoleType } from '../roles/constants'
 import { UploadAvatar } from '@shared/file-upload'
+import { User } from './domain/user.entity'
+
+// Commands
+import {
+  CreateUserCommand,
+  UpdateUserCommand,
+  DeleteUserCommand,
+  UploadAvatarCommand,
+} from './application/commands'
+
+// Queries
+import { GetUserQuery, ListUsersQuery } from './application/queries'
 
 @ApiTags('Usuarios')
 @ApiBearerAuth('JWT-auth')
 @Controller('users')
 export class UsersController {
   constructor(
-    private readonly createUserUseCase: CreateUserUseCase,
-    private readonly updateUserUseCase: UpdateUserUseCase,
-    private readonly getUserUseCase: GetUserUseCase,
-    private readonly listUsersUseCase: ListUsersUseCase,
-    private readonly deleteUserUseCase: DeleteUserUseCase,
-    private readonly uploadAvatarUseCase: UploadAvatarUseCase,
+    private readonly commandBus: CommandBus,
+    private readonly queryBus: QueryBus,
   ) {}
 
   @Post()
@@ -56,7 +57,8 @@ export class UsersController {
   })
   @ApiResponse({ status: 409, description: 'Email o username ya existe' })
   async create(@Body() dto: CreateUserDto): Promise<UserResponseDto> {
-    const user = await this.createUserUseCase.execute(dto)
+    const command = new CreateUserCommand(dto)
+    const user = await this.commandBus.execute<CreateUserCommand, User>(command)
 
     return {
       id: user.id,
@@ -85,7 +87,8 @@ export class UsersController {
     type: [UserResponseDto],
   })
   async list(): Promise<UserResponseDto[]> {
-    const users = await this.listUsersUseCase.execute()
+    const query = new ListUsersQuery()
+    const users = await this.queryBus.execute<ListUsersQuery, User[]>(query)
 
     return users.map((user) => ({
       id: user.id,
@@ -116,7 +119,8 @@ export class UsersController {
   })
   @ApiResponse({ status: 404, description: 'Usuario no encontrado' })
   async getById(@Param('id') id: string): Promise<UserResponseDto> {
-    const user = await this.getUserUseCase.execute(id)
+    const query = new GetUserQuery(id)
+    const user = await this.queryBus.execute<GetUserQuery, User>(query)
 
     return {
       id: user.id,
@@ -150,7 +154,8 @@ export class UsersController {
     @Param('id') id: string,
     @Body() dto: UpdateUserDto,
   ): Promise<UserResponseDto> {
-    const user = await this.updateUserUseCase.execute(id, dto)
+    const command = new UpdateUserCommand(id, dto)
+    const user = await this.commandBus.execute<UpdateUserCommand, User>(command)
 
     return {
       id: user.id,
@@ -184,7 +189,11 @@ export class UsersController {
     @Param('id') id: string,
     @UploadedFile() file: Express.Multer.File,
   ): Promise<UploadAvatarResponseDto> {
-    const result = await this.uploadAvatarUseCase.execute(id, file)
+    const command = new UploadAvatarCommand(id, file)
+    const result = await this.commandBus.execute<
+      UploadAvatarCommand,
+      { avatarUrl: string; avatarPath: string }
+    >(command)
 
     return {
       message: 'Avatar actualizado exitosamente',
@@ -201,6 +210,7 @@ export class UsersController {
   @ApiResponse({ status: 204, description: 'Usuario eliminado' })
   @ApiResponse({ status: 404, description: 'Usuario no encontrado' })
   async delete(@Param('id') id: string): Promise<void> {
-    await this.deleteUserUseCase.execute(id)
+    const command = new DeleteUserCommand(id)
+    await this.commandBus.execute(command)
   }
 }

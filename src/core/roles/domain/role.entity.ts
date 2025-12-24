@@ -48,7 +48,7 @@ export class Role {
     }
 
     const role = new Role()
-    role.name = data.name
+    role.name = data.name as RoleType
     role.description = data.description?.trim() || null
 
     return role
@@ -70,7 +70,7 @@ export class Role {
     role.createdAt = data.createdAt
     role.updatedAt = data.updatedAt
     role.deletedAt = data.deletedAt || null
-    role.name = data.name
+    role.name = data.name as RoleType
     role.description = data.description || null
     role.permissions = data.permissions || []
 

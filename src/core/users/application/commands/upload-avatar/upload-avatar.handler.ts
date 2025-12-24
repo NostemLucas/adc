@@ -1,13 +1,18 @@
-import { Injectable, Inject } from '@nestjs/common'
-import type { IUserRepository } from '../../domain/repositories'
-import { USER_REPOSITORY } from '../../domain/repositories'
+import { CommandHandler, ICommandHandler } from '@nestjs/cqrs'
+import { Inject } from '@nestjs/common'
+import type { IUserRepository } from '../../../domain/repositories'
+import { USER_REPOSITORY } from '../../../domain/repositories'
 import { FileStorageService } from '@shared/file-upload'
+import { UploadAvatarCommand } from './upload-avatar.command'
 
 /**
- * Caso de uso para subir/actualizar el avatar de un usuario
+ * Handler para el comando UploadAvatar.
+ * Responsable de subir/actualizar el avatar de un usuario.
  */
-@Injectable()
-export class UploadAvatarUseCase {
+@CommandHandler(UploadAvatarCommand)
+export class UploadAvatarHandler
+  implements ICommandHandler<UploadAvatarCommand>
+{
   constructor(
     @Inject(USER_REPOSITORY)
     private readonly userRepository: IUserRepository,
@@ -15,9 +20,10 @@ export class UploadAvatarUseCase {
   ) {}
 
   async execute(
-    userId: string,
-    file: Express.Multer.File,
+    command: UploadAvatarCommand,
   ): Promise<{ avatarUrl: string; avatarPath: string }> {
+    const { userId, file } = command
+
     // Obtener el usuario
     const user = await this.userRepository.findByIdOrFail(userId)
 
