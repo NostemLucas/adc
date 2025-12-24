@@ -72,7 +72,10 @@ export class AuthService {
     }
 
     // Verificar contraseña
-    const isPasswordValid = await bcrypt.compare(password, user.password)
+    const isPasswordValid = await bcrypt.compare(
+      password,
+      user.password.getValue(),
+    )
 
     if (!isPasswordValid) {
       // Incrementar intentos fallidos

@@ -10,9 +10,9 @@ import {
   Username,
   Address,
   ImageUrl,
+  HashedPassword,
 } from './value-objects'
 import {
-  InvalidPasswordException,
   EmptyFieldException,
   MissingRolesException,
   ExclusiveRoleViolationException,
@@ -30,7 +30,7 @@ interface UserConstructorProps {
   lastNames: PersonName
   email: Email
   username: Username
-  password: string
+  password: HashedPassword
   ci: CI
   roles: Role[]
   status: UserStatus
@@ -66,7 +66,7 @@ export class User extends AggregateRoot {
   private _lastNames: PersonName
   private _email: Email
   private _username: Username
-  private _password: string
+  private _password: HashedPassword
   private _ci: CI
   private _roles: Role[]
   private _status: UserStatus
@@ -131,7 +131,7 @@ export class User extends AggregateRoot {
     return this._username
   }
 
-  get password(): string {
+  get password(): HashedPassword {
     return this._password
   }
 
@@ -164,7 +164,8 @@ export class User extends AggregateRoot {
   }
 
   get roles(): Role[] {
-    return this._roles
+    // Devolver copia para proteger inmutabilidad
+    return [...this._roles]
   }
 
   // ===== GETTERS COMPUTADOS =====
@@ -249,12 +250,8 @@ export class User extends AggregateRoot {
   }
 
   updatePassword(hashedPassword: string): void {
-    if (!User.isValidHashedPassword(hashedPassword)) {
-      throw new InvalidPasswordException(
-        'La contraseña debe estar hasheada correctamente',
-      )
-    }
-    this._password = hashedPassword
+    // El VO HashedPassword se encarga de validar
+    this._password = HashedPassword.create(hashedPassword)
     this.resetLoginAttempts()
   }
 
@@ -286,7 +283,6 @@ export class User extends AggregateRoot {
   static create(data: CreateUserData): User {
     // Validaciones básicas
     User.validateRequiredFields(data)
-    User.validateFormats(data)
     User.validateRoles(data.roles)
 
     const now = new Date()
@@ -300,7 +296,7 @@ export class User extends AggregateRoot {
       lastNames: PersonName.create(data.lastNames, 'apellidos'),
       email: Email.create(data.email),
       username: Username.create(data.username),
-      password: data.password,
+      password: HashedPassword.create(data.password),
       ci: CI.create(data.ci),
       roles: data.roles,
       status: UserStatus.ACTIVE,
@@ -342,7 +338,7 @@ export class User extends AggregateRoot {
       lastNames: PersonName.create(data.lastNames, 'apellidos'),
       email: Email.create(data.email),
       username: Username.create(data.username),
-      password: data.password,
+      password: HashedPassword.create(data.password), // ← VO valida
       ci: CI.create(data.ci),
       roles: data.roles || [],
       status: data.status,
@@ -478,19 +474,6 @@ export class User extends AggregateRoot {
     }
   }
 
-  private static validateFormats(data: {
-    email: string
-    password: string
-    ci: string
-  }): void {
-    // Email, CI, Username, etc. se validan automáticamente en los Value Objects
-    // Solo validamos password aquí (no tiene VO porque se maneja con hash)
-
-    if (!User.isValidHashedPassword(data.password)) {
-      throw new InvalidPasswordException('La contraseña debe estar hasheada')
-    }
-  }
-
   private static validateRoles(roles: Role[]): void {
     if (!roles || roles.length === 0) {
       throw new MissingRolesException()
@@ -501,22 +484,5 @@ export class User extends AggregateRoot {
     if (hasClientRole && roles.length > 1) {
       throw new ExclusiveRoleViolationException('CLIENTE')
     }
-  }
-
-  /**
-   * Valida que la contraseña esté hasheada (no texto plano).
-   * Soporta múltiples algoritmos de hashing (bcrypt, argon2, etc.)
-   */
-  private static isValidHashedPassword(password: string): boolean {
-    // Validación genérica: debe ser un hash (no texto plano)
-    // Los hashes típicamente empiezan con $ y tienen formato específico
-    const hashPatterns = [
-      /^\$2[aby]\$/, // bcrypt
-      /^\$argon2/, // argon2
-      /^\$6\$/, // SHA-512
-      /^\$5\$/, // SHA-256
-    ]
-
-    return hashPatterns.some((pattern) => pattern.test(password))
   }
 }

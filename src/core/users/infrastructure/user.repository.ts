@@ -213,7 +213,7 @@ export class UserRepository
         email: user.email.getValue(), // ← Extrae string del Value Object
         phone: user.phone?.getValue() || null, // ← Extrae string del Value Object
         username: user.username.getValue(), // ← Extrae string del Value Object
-        password: user.password,
+        password: user.password.getValue(), // ← Extrae string del Value Object
         ci: user.ci.getValue(), // ← Extrae string del Value Object
         image: user.image?.getValue() || null, // ← Extrae string del Value Object
         address: user.address?.getValue() || null, // ← Extrae string del Value Object
@@ -257,7 +257,7 @@ export class UserRepository
         email: user.email.getValue(), // ← Extrae string del Value Object
         phone: user.phone?.getValue() || null, // ← Extrae string del Value Object
         username: user.username.getValue(), // ← Extrae string del Value Object
-        password: user.password,
+        password: user.password.getValue(), // ← Extrae string del Value Object
         ci: user.ci.getValue(), // ← Extrae string del Value Object
         image: user.image?.getValue() || null, // ← Extrae string del Value Object
         address: user.address?.getValue() || null, // ← Extrae string del Value Object

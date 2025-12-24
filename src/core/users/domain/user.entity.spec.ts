@@ -319,7 +319,7 @@ describe('User Entity', () => {
       const newHash = '$2b$10$NewHashValue123456789012345678901234567890'
       user.updatePassword(newHash)
 
-      expect(user.password).toBe(newHash)
+      expect(user.password.getValue()).toBe(newHash)
       expect(user.failedLoginAttempts).toBe(0)
     })
 
