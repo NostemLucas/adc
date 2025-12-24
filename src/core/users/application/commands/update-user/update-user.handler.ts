@@ -34,7 +34,7 @@ export class UpdateUserHandler implements ICommandHandler<UpdateUserCommand> {
       dto.email,
       user.email.getValue(),
       dto.username,
-      user.username,
+      user.username.getValue(),
       dto.ci,
       user.ci.getValue(),
     )

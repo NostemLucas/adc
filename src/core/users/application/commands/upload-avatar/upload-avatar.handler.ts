@@ -29,7 +29,7 @@ export class UploadAvatarHandler
 
     // Eliminar avatar anterior si existe
     if (user.image) {
-      await this.fileStorageService.deleteFile(user.image)
+      await this.fileStorageService.deleteFile(user.image.getValue())
     }
 
     // Guardar nuevo avatar
@@ -40,7 +40,7 @@ export class UploadAvatarHandler
     )
 
     // Actualizar usuario con la nueva ruta del avatar
-    user.image = uploadedFile.path
+    user.update({ image: uploadedFile.path })
     await this.userRepository.update(user)
 
     return {

@@ -111,7 +111,7 @@ export class AuthService {
     return {
       user: {
         id: user.id,
-        username: user.username,
+        username: user.username.getValue(),
         email: user.email.getValue(),
         fullName: user.fullName,
         roles: user.roles.map((role) => role.name),
@@ -203,7 +203,7 @@ export class AuthService {
   private async generateTokenPair(user: User): Promise<TokenPair> {
     const payload: JwtPayload = {
       sub: user.id,
-      username: user.username,
+      username: user.username.getValue(),
       email: user.email.getValue(),
       roles: user.roles.map((role) => role.name),
     }
@@ -311,7 +311,7 @@ export class AuthService {
     const hashedPassword = await bcrypt.hash(newPassword, 10)
 
     // Actualizar contraseña del usuario
-    user.password = hashedPassword
+    user.updatePassword(hashedPassword)
     await this.userRepository.save(user)
 
     // Marcar token como usado

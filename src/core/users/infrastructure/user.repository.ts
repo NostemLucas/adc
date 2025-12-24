@@ -208,15 +208,15 @@ export class UserRepository
   async create(user: User): Promise<User> {
     const created: PrismaUserWithRoles = await this.prisma.user.create({
       data: {
-        names: user.names,
-        lastNames: user.lastNames,
+        names: user.names.getValue(), // ← Extrae string del Value Object
+        lastNames: user.lastNames.getValue(), // ← Extrae string del Value Object
         email: user.email.getValue(), // ← Extrae string del Value Object
         phone: user.phone?.getValue() || null, // ← Extrae string del Value Object
-        username: user.username,
+        username: user.username.getValue(), // ← Extrae string del Value Object
         password: user.password,
         ci: user.ci.getValue(), // ← Extrae string del Value Object
-        image: user.image,
-        address: user.address,
+        image: user.image?.getValue() || null, // ← Extrae string del Value Object
+        address: user.address?.getValue() || null, // ← Extrae string del Value Object
         status: UserStatusMapper.toPrisma(user.status),
         failedLoginAttempts: user.failedLoginAttempts,
         lockUntil: user.lockUntil,
@@ -252,15 +252,15 @@ export class UserRepository
     const updated: PrismaUserWithRoles = await this.prisma.user.update({
       where: { id: user.id },
       data: {
-        names: user.names,
-        lastNames: user.lastNames,
+        names: user.names.getValue(), // ← Extrae string del Value Object
+        lastNames: user.lastNames.getValue(), // ← Extrae string del Value Object
         email: user.email.getValue(), // ← Extrae string del Value Object
         phone: user.phone?.getValue() || null, // ← Extrae string del Value Object
-        username: user.username,
+        username: user.username.getValue(), // ← Extrae string del Value Object
         password: user.password,
         ci: user.ci.getValue(), // ← Extrae string del Value Object
-        image: user.image,
-        address: user.address,
+        image: user.image?.getValue() || null, // ← Extrae string del Value Object
+        address: user.address?.getValue() || null, // ← Extrae string del Value Object
         status: UserStatusMapper.toPrisma(user.status),
         failedLoginAttempts: user.failedLoginAttempts,
         lockUntil: user.lockUntil,

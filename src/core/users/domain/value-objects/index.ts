@@ -1,3 +1,7 @@
 export * from './email.vo'
 export * from './ci.vo'
 export * from './phone.vo'
+export * from './person-name.vo'
+export * from './username.vo'
+export * from './address.vo'
+export * from './image-url.vo'

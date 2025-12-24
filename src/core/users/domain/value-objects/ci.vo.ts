@@ -108,14 +108,14 @@ export class CI {
   getDepartmentCode(): string {
     const codes: Record<string, string> = {
       'La Paz': 'LP',
-      'Oruro': 'OR',
-      'Potosí': 'PT',
-      'Cochabamba': 'CB',
-      'Chuquisaca': 'CH',
-      'Tarija': 'TJ',
+      Oruro: 'OR',
+      Potosí: 'PT',
+      Cochabamba: 'CB',
+      Chuquisaca: 'CH',
+      Tarija: 'TJ',
       'Santa Cruz': 'SC',
-      'Beni': 'BE',
-      'Pando': 'PD',
+      Beni: 'BE',
+      Pando: 'PD',
     }
 
     return codes[this.getDepartment()] || 'XX'
