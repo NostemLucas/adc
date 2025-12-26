@@ -16,7 +16,7 @@ import {
   ApiParam,
 } from '@nestjs/swagger'
 import { CurrentUser } from '../auth/decorators/current-user.decorator'
-import { User } from '../users/domain/user.entity'
+import { User } from '../users/domain/user'
 import {
   ListNotificationsUseCase,
   MarkNotificationAsReadUseCase,

@@ -1,7 +1,7 @@
 import { CommandHandler, ICommandHandler, EventBus } from '@nestjs/cqrs'
 import { Inject } from '@nestjs/common'
 import type { IUserRepository } from '../../../domain/repositories'
-import { USER_REPOSITORY } from '../../../domain/repositories'
+import { USER_REPOSITORY } from '../../../infrastructure'
 import { DeleteUserCommand } from './delete-user.command'
 
 /**

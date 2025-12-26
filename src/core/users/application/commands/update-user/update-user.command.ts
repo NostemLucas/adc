@@ -1,4 +1,4 @@
-import { UpdateUserDto } from '../../dto/update-user.dto'
+import { UpdateUserDto } from './update-user.dto'
 
 /**
  * Command para actualizar un usuario existente.

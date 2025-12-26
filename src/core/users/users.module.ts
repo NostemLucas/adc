@@ -1,9 +1,7 @@
 import { Module } from '@nestjs/common'
 import { CqrsModule } from '@nestjs/cqrs'
 import { UsersController } from './users.controller'
-import { UserRepository } from './infrastructure/user.repository'
-import { USER_REPOSITORY } from './domain/repositories'
-import { RoleRepository } from '../roles/infrastructure/role.repository'
+import { UserRepository, USER_REPOSITORY } from './infrastructure'
 import { UserUniquenessValidator } from './domain/services'
 
 // Commands
@@ -48,10 +46,14 @@ const EventHandlers = [
       provide: USER_REPOSITORY,
       useClass: UserRepository,
     },
-    RoleRepository,
 
-    // Domain Services
-    UserUniquenessValidator,
+    // Domain Services (injected manually since they're framework-agnostic)
+    {
+      provide: UserUniquenessValidator,
+      useFactory: (userRepository: UserRepository) =>
+        new UserUniquenessValidator(userRepository),
+      inject: [USER_REPOSITORY],
+    },
 
     // CQRS Handlers
     ...CommandHandlers,

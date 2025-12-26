@@ -1,12 +1,11 @@
 import { CommandHandler, ICommandHandler, EventBus } from '@nestjs/cqrs'
-import { Inject } from '@nestjs/common'
+import { Inject, BadRequestException } from '@nestjs/common'
 import type { IUserRepository } from '../../../domain/repositories'
-import { USER_REPOSITORY } from '../../../domain/repositories'
-import { RoleRepository } from '../../../../roles/infrastructure/role.repository'
-import { User } from '../../../domain/user.entity'
-import { RoleNotFoundException } from '../../../domain/exceptions'
+import { USER_REPOSITORY } from '../../../infrastructure'
+import { User } from '../../../domain/user'
 import { UserUniquenessValidator } from '../../../domain/services'
 import { UpdateUserCommand } from './update-user.command'
+import { Role } from 'src/core/auth/domain/authorization'
 
 /**
  * Handler para el comando UpdateUser.
@@ -17,7 +16,6 @@ export class UpdateUserHandler implements ICommandHandler<UpdateUserCommand> {
   constructor(
     @Inject(USER_REPOSITORY)
     private readonly userRepository: IUserRepository,
-    private readonly roleRepository: RoleRepository,
     private readonly uniquenessValidator: UserUniquenessValidator,
     private readonly eventBus: EventBus,
   ) {}
@@ -39,12 +37,15 @@ export class UpdateUserHandler implements ICommandHandler<UpdateUserCommand> {
       user.ci.getValue(),
     )
 
-    // 3. Si hay roleIds, buscar roles
-    let roles = user.roles
-    if (dto.roleIds) {
-      roles = await this.roleRepository.findByIds(dto.roleIds)
-      if (roles.length !== dto.roleIds.length) {
-        throw new RoleNotFoundException('Algunos roles no existen')
+    // 3. Validar que los roles sean válidos si se proporcionan
+    if (dto.roles) {
+      const invalidRoles = dto.roles.filter(
+        (role) => !Object.values(Role).includes(role as Role),
+      )
+      if (invalidRoles.length > 0) {
+        throw new BadRequestException(
+          `Roles inválidos: ${invalidRoles.join(', ')}. Roles válidos: ${Object.values(Role).join(', ')}`,
+        )
       }
     }
 
@@ -58,7 +59,7 @@ export class UpdateUserHandler implements ICommandHandler<UpdateUserCommand> {
       phone: dto.phone,
       address: dto.address,
       image: dto.image,
-      roles: dto.roleIds ? roles : undefined,
+      roles: dto.roles as Role[] | undefined,
     })
 
     // 5. Persistir

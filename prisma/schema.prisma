@@ -46,9 +46,9 @@ model User {
   status              UserStatus  @default(ACTIVE)
   failedLoginAttempts Int         @default(0) @map("failed_login_attempts")
   lockUntil           DateTime?   @map("lock_until")
+  roles               String[]    // Array: ['administrador', 'gerente']
 
   // Relations
-  roles                 Role[]         @relation("UserRoles")
   sessions              Session[]
   otps                  Otp[]
   managedAudits         Audit[]        @relation("ManagedAudits")
@@ -61,64 +61,70 @@ model User {
   @@map("users")
 }
 
-model Role {
-  id        String    @id @default(uuid())
-  createdAt DateTime  @default(now()) @map("created_at")
-  updatedAt DateTime  @updatedAt @map("updated_at")
-  deletedAt DateTime? @map("deleted_at")
+// Role model deprecated - roles are now hardcoded in authorization config
+// Keeping model commented for reference during migration
+// model Role {
+//   id        String    @id @default(uuid())
+//   createdAt DateTime  @default(now()) @map("created_at")
+//   updatedAt DateTime  @updatedAt @map("updated_at")
+//   deletedAt DateTime? @map("deleted_at")
 
-  // Role fields
-  name        String  @unique
-  description String? @db.Text
+//   // Role fields
+//   name        String  @unique
+//   description String? @db.Text
 
-  // Relations
-  users       User[]       @relation("UserRoles")
-  permissions Permission[] @relation("RolePermissions")
+//   // Relations
+//   users       User[]       @relation("UserRoles")
+//   permissions Permission[] @relation("RolePermissions")
 
-  @@map("roles")
-}
+//   @@map("roles")
+// }
 
-model Permission {
-  id        String    @id @default(uuid())
-  createdAt DateTime  @default(now()) @map("created_at")
-  updatedAt DateTime  @updatedAt @map("updated_at")
-  deletedAt DateTime? @map("deleted_at")
+// Permission model deprecated - permissions are now hardcoded in authorization config
+// Keeping model commented for reference during migration
+// model Permission {
+//   id        String    @id @default(uuid())
+//   createdAt DateTime  @default(now()) @map("created_at")
+//   updatedAt DateTime  @updatedAt @map("updated_at")
+//   deletedAt DateTime? @map("deleted_at")
 
-  // Permission fields
-  name        String  @unique // Ej: "users.create", "audits.read", "reports.export"
-  description String? @db.Text
-  resource    String // Ej: "users", "audits", "reports"
-  action      String // Ej: "create", "read", "update", "delete", "export"
+//   // Permission fields
+//   name        String  @unique // Ej: "users.create", "audits.read", "reports.export"
+//   description String? @db.Text
+//   resource    String // Ej: "users", "audits", "reports"
+//   action      String // Ej: "create", "read", "update", "delete", "export"
 
-  // Relations
-  roles Role[] @relation("RolePermissions")
-  menus Menu[] @relation("MenuPermissions")
+//   // Relations
+//   roles Role[] @relation("RolePermissions")
+//   menus Menu[] @relation("MenuPermissions")
 
-  @@unique([resource, action])
-  @@map("permissions")
-}
+//   @@unique([resource, action])
+//   @@map("permissions")
+// }
 
-model Menu {
-  id        String    @id @default(uuid())
-  createdAt DateTime  @default(now()) @map("created_at")
-  updatedAt DateTime  @updatedAt @map("updated_at")
-  deletedAt DateTime? @map("deleted_at")
+// Menu model deprecated - menus are now hardcoded in authorization config
+// Keeping model commented for reference during migration
+// model Menu {
+//   id        String    @id @default(uuid())
+//   createdAt DateTime  @default(now()) @map("created_at")
+//   updatedAt DateTime  @updatedAt @map("updated_at")
+//   deletedAt DateTime? @map("deleted_at")
 
-  // Menu fields
-  name        String  // Ej: "Usuarios", "Auditorías", "Reportes"
-  icon        String? // Ej: "UserIcon", "DocumentIcon" (para frontend)
-  path        String? // Ej: "/users", "/audits" (null para menús padre)
-  order       Int     @default(0) // Orden de aparición
-  isActive    Boolean @default(true) @map("is_active")
-  parentId    String? @map("parent_id") // Para submenús
+//   // Menu fields
+//   name        String  // Ej: "Usuarios", "Auditorías", "Reportes"
+//   icon        String? // Ej: "UserIcon", "DocumentIcon" (para frontend)
+//   path        String? // Ej: "/users", "/audits" (null para menús padre)
+//   order       Int     @default(0) // Orden de aparición
+//   isActive    Boolean @default(true) @map("is_active")
+//   parentId    String? @map("parent_id") // Para submenús
 
-  // Relations
-  parent      Menu?        @relation("MenuHierarchy", fields: [parentId], references: [id], onDelete: Cascade)
-  children    Menu[]       @relation("MenuHierarchy")
-  permissions Permission[] @relation("MenuPermissions")
+//   // Relations
+//   parent      Menu?        @relation("MenuHierarchy", fields: [parentId], references: [id], onDelete: Cascade)
+//   children    Menu[]       @relation("MenuHierarchy")
+//   permissions Permission[] @relation("MenuPermissions")
 
-  @@map("menus")
-}
+//   @@map("menus")
+// }
 
 model Session {
   id        String    @id @default(uuid())
@@ -129,6 +135,7 @@ model Session {
   // Session fields
   userId       String    @map("user_id")
   refreshToken String    @map("refresh_token") @db.Text
+  currentRole  String    @map("current_role") // Rol activo de esta sesión
   expiresAt    DateTime  @map("expires_at")
   ipAddress    String?   @map("ip_address")
   userAgent    String?   @map("user_agent")

@@ -1,4 +1,4 @@
-import { CreateUserDto } from '../../dto/create-user.dto'
+import { CreateUserDto } from './create-user.dto'
 
 /**
  * Command para crear un nuevo usuario.

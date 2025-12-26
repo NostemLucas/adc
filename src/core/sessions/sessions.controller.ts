@@ -1,4 +1,11 @@
-import { Controller, Get, Delete, Param, HttpCode, HttpStatus } from '@nestjs/common'
+import {
+  Controller,
+  Get,
+  Delete,
+  Param,
+  HttpCode,
+  HttpStatus,
+} from '@nestjs/common'
 import {
   ApiTags,
   ApiOperation,
@@ -10,7 +17,7 @@ import { ListMySessionsUseCase } from './application/use-cases/list-my-sessions.
 import { InvalidateSessionUseCase } from './application/use-cases/invalidate-session.use-case'
 import { SessionResponseDto } from './application/dto/session-response.dto'
 import { CurrentUser } from '../auth/decorators/current-user.decorator'
-import { User } from '../users/domain/user.entity'
+import { User } from '../users/domain/user'
 
 @ApiTags('Sesiones')
 @ApiBearerAuth('JWT-auth')
@@ -28,7 +35,9 @@ export class SessionsController {
     description: 'Lista de sesiones activas del usuario',
     type: [SessionResponseDto],
   })
-  async listMySessions(@CurrentUser() user: User): Promise<SessionResponseDto[]> {
+  async listMySessions(
+    @CurrentUser() user: User,
+  ): Promise<SessionResponseDto[]> {
     const sessions = await this.listMySessionsUseCase.execute(user.id)
 
     return sessions.map((session) => ({

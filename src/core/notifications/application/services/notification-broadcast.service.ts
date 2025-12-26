@@ -8,7 +8,7 @@ import {
   NotificationMetadata,
 } from '../../domain/notification.entity'
 import type { IUserRepository } from 'src/core/users/domain/repositories'
-import { USER_REPOSITORY } from 'src/core/users/domain/repositories'
+import { USER_REPOSITORY } from 'src/core/users/infrastructure'
 
 export interface NotifyAdminsParams {
   title: string

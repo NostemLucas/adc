@@ -1,8 +1,8 @@
 import { QueryHandler, IQueryHandler } from '@nestjs/cqrs'
 import { NotFoundException, Inject } from '@nestjs/common'
 import type { IUserRepository } from '../../../domain/repositories'
-import { USER_REPOSITORY } from '../../../domain/repositories'
-import { User } from '../../../domain/user.entity'
+import { USER_REPOSITORY } from '../../../infrastructure'
+import { User } from '../../../domain/user'
 import { GetUserQuery } from './get-user.query'
 
 /**

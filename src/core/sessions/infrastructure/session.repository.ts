@@ -21,6 +21,7 @@ export class SessionRepository {
       deletedAt: prismaSession.deletedAt,
       userId: prismaSession.userId,
       refreshToken: prismaSession.refreshToken,
+      currentRole: prismaSession.currentRole,
       expiresAt: prismaSession.expiresAt,
       ipAddress: prismaSession.ipAddress,
       userAgent: prismaSession.userAgent,
@@ -38,6 +39,19 @@ export class SessionRepository {
     })
 
     return session ? this.toDomain(session) : null
+  }
+
+  /**
+   * Buscar por ID o lanzar excepción
+   */
+  async findByIdOrFail(id: string): Promise<Session> {
+    const session = await this.findById(id)
+
+    if (!session) {
+      throw new Error(`Sesión con ID ${id} no encontrada`)
+    }
+
+    return session
   }
 
   /**
@@ -76,6 +90,7 @@ export class SessionRepository {
       data: {
         userId: session.userId,
         refreshToken: session.refreshToken,
+        currentRole: session.currentRole,
         expiresAt: session.expiresAt,
         ipAddress: session.ipAddress,
         userAgent: session.userAgent,
@@ -95,6 +110,7 @@ export class SessionRepository {
       where: { id: session.id },
       data: {
         refreshToken: session.refreshToken,
+        currentRole: session.currentRole,
         expiresAt: session.expiresAt,
         ipAddress: session.ipAddress,
         userAgent: session.userAgent,

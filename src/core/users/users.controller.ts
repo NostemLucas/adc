@@ -18,14 +18,14 @@ import {
   ApiParam,
 } from '@nestjs/swagger'
 import { CommandBus, QueryBus } from '@nestjs/cqrs'
-import { CreateUserDto } from './application/dto/create-user.dto'
-import { UpdateUserDto } from './application/dto/update-user.dto'
-import { UserResponseDto } from './application/dto/user-response.dto'
-import { UploadAvatarResponseDto } from './application/dto/upload-avatar.dto'
+import { CreateUserDto } from './application/commands/create-user/create-user.dto'
+import { UpdateUserDto } from './application/commands/update-user/update-user.dto'
+import { UserResponseDto } from './application/queries/get-user/user-response.dto'
+import { UploadAvatarResponseDto } from './application/commands/upload-avatar/upload-avatar.dto'
 import { Roles } from '../auth/decorators/roles.decorator'
-import { RoleType } from '../roles/constants'
+import { Role } from '../auth/domain/authorization'
 import { UploadAvatar } from '@shared/file-upload'
-import { User } from './domain/user.entity'
+import { User } from './domain/user'
 
 // Commands
 import {
@@ -48,7 +48,7 @@ export class UsersController {
   ) {}
 
   @Post()
-  @Roles(RoleType.ADMINISTRADOR)
+  @Roles(Role.ADMINISTRADOR)
   @ApiOperation({ summary: 'Crear usuario' })
   @ApiResponse({
     status: 201,
@@ -72,14 +72,14 @@ export class UsersController {
       address: user.address?.getValue(),
       image: user.image?.getValue(),
       status: user.status,
-      roles: user.roles.map((r) => r.name),
+      roles: user.roles,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
     }
   }
 
   @Get()
-  @Roles(RoleType.ADMINISTRADOR, RoleType.GERENTE)
+  @Roles(Role.ADMINISTRADOR, Role.GERENTE)
   @ApiOperation({ summary: 'Listar usuarios activos' })
   @ApiResponse({
     status: 200,
@@ -102,14 +102,14 @@ export class UsersController {
       address: user.address?.getValue(),
       image: user.image?.getValue(),
       status: user.status,
-      roles: user.roles.map((r) => r.name),
+      roles: user.roles,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
     }))
   }
 
   @Get(':id')
-  @Roles(RoleType.ADMINISTRADOR, RoleType.GERENTE)
+  @Roles(Role.ADMINISTRADOR, Role.GERENTE)
   @ApiOperation({ summary: 'Obtener usuario por ID' })
   @ApiParam({ name: 'id', description: 'ID del usuario' })
   @ApiResponse({
@@ -134,14 +134,14 @@ export class UsersController {
       address: user.address?.getValue(),
       image: user.image?.getValue(),
       status: user.status,
-      roles: user.roles.map((r) => r.name),
+      roles: user.roles,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
     }
   }
 
   @Put(':id')
-  @Roles(RoleType.ADMINISTRADOR)
+  @Roles(Role.ADMINISTRADOR)
   @ApiOperation({ summary: 'Actualizar usuario' })
   @ApiParam({ name: 'id', description: 'ID del usuario' })
   @ApiResponse({
@@ -169,14 +169,14 @@ export class UsersController {
       address: user.address?.getValue(),
       image: user.image?.getValue(),
       status: user.status,
-      roles: user.roles.map((r) => r.name),
+      roles: user.roles,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
     }
   }
 
   @Post(':id/avatar')
-  @Roles(RoleType.ADMINISTRADOR)
+  @Roles(Role.ADMINISTRADOR)
   @UploadAvatar() // 🔥 Un solo decorador para todo: Multer + Validación + Swagger
   @ApiOperation({
     summary: 'Subir o actualizar avatar de usuario',
@@ -203,7 +203,7 @@ export class UsersController {
   }
 
   @Delete(':id')
-  @Roles(RoleType.ADMINISTRADOR)
+  @Roles(Role.ADMINISTRADOR)
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Eliminar usuario (soft delete)' })
   @ApiParam({ name: 'id', description: 'ID del usuario' })

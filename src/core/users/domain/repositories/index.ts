@@ -1,8 +1,8 @@
 /**
- * Repository interfaces and tokens
+ * Repository interfaces (ports)
  *
- * Export all repository abstractions (ports) and injection tokens
+ * Export only repository abstractions (interfaces).
+ * DI tokens are in infrastructure layer (framework-specific).
  */
 
 export * from './user.repository.interface'
-export * from './tokens'

@@ -1,11 +1,13 @@
 import {
   Controller,
   Post,
+  Put,
   Body,
   HttpCode,
   HttpStatus,
   Req,
   Ip,
+  Inject,
 } from '@nestjs/common'
 import {
   ApiTags,
@@ -28,7 +30,11 @@ import {
 } from './dto/auth-response.dto'
 import { Public } from './decorators/public.decorator'
 import { CurrentUser } from './decorators/current-user.decorator'
-import { User } from '../users/domain/user.entity'
+import { SessionId } from './decorators/session-id.decorator'
+import { CurrentRole } from './decorators/current-role.decorator'
+import { User } from '../users/domain/user'
+import { Role } from './domain/authorization'
+import { BadRequestException } from '@nestjs/common'
 import type { Request } from 'express'
 
 @ApiTags('Autenticación')
@@ -66,6 +72,7 @@ export class AuthController {
       loginDto.password,
       ip,
       userAgent,
+      loginDto.preferredRole as any,
     )
   }
 
@@ -146,14 +153,56 @@ export class AuthController {
     type: UserProfileResponseDto,
   })
   @ApiUnauthorizedResponse()
-  async getProfile(@CurrentUser() user: User) {
+  async getProfile(
+    @CurrentUser() user: User,
+    @CurrentRole() currentRole: string,
+  ) {
     return {
       id: user.id,
       username: user.username,
       email: user.email,
       fullName: user.fullName,
-      roles: user.roles.map((role) => role.name),
+      roles: user.roles,
+      currentRole,
     }
+  }
+
+  @Put('switch-role')
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({
+    summary: 'Cambiar rol activo',
+    description: 'Permite al usuario cambiar entre sus roles disponibles',
+  })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        role: {
+          type: 'string',
+          enum: ['administrador', 'gerente', 'auditor', 'cliente'],
+          description: 'Nuevo rol activo',
+        },
+      },
+      required: ['role'],
+    },
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Rol cambiado exitosamente',
+    type: LoginResponseDto,
+  })
+  @ApiUnauthorizedResponse()
+  async switchRole(
+    @SessionId() sessionId: string,
+    @Body() dto: { role: string },
+  ): Promise<LoginResponseDto> {
+    // Validar que el rol sea válido
+    if (!Object.values(Role).includes(dto.role as Role)) {
+      throw new BadRequestException('Rol inválido')
+    }
+
+    return this.authService.switchRole(sessionId, dto.role as Role)
   }
 
   @Public()
@@ -183,8 +232,7 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Restablecer contraseña',
-    description:
-      'Restablece la contraseña usando el token recibido por email',
+    description: 'Restablece la contraseña usando el token recibido por email',
   })
   @ApiBody({ type: ResetPasswordDto })
   @ApiResponse({

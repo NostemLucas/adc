@@ -1,13 +1,12 @@
 import { CommandHandler, ICommandHandler, EventBus } from '@nestjs/cqrs'
-import { Inject } from '@nestjs/common'
+import { Inject, BadRequestException } from '@nestjs/common'
 import * as bcrypt from 'bcrypt'
 import type { IUserRepository } from '../../../domain/repositories'
-import { USER_REPOSITORY } from '../../../domain/repositories'
-import { RoleRepository } from '../../../../roles/infrastructure/role.repository'
-import { User } from '../../../domain/user.entity'
-import { RoleNotFoundException } from '../../../domain/exceptions'
+import { USER_REPOSITORY } from '../../../infrastructure'
+import { User } from '../../../domain/user'
 import { UserUniquenessValidator } from '../../../domain/services'
 import { CreateUserCommand } from './create-user.command'
+import { Role } from 'src/core/auth/domain/authorization'
 
 /**
  * Handler para el comando CreateUser.
@@ -18,7 +17,6 @@ export class CreateUserHandler implements ICommandHandler<CreateUserCommand> {
   constructor(
     @Inject(USER_REPOSITORY)
     private readonly userRepository: IUserRepository,
-    private readonly roleRepository: RoleRepository,
     private readonly uniquenessValidator: UserUniquenessValidator,
     private readonly eventBus: EventBus,
   ) {}
@@ -33,11 +31,14 @@ export class CreateUserHandler implements ICommandHandler<CreateUserCommand> {
       dto.ci,
     )
 
-    // 2. Buscar roles
-    const roles = await this.roleRepository.findByIds(dto.roleIds)
-
-    if (roles.length !== dto.roleIds.length) {
-      throw new RoleNotFoundException('Algunos roles no existen')
+    // 2. Validar que los roles sean válidos
+    const invalidRoles = dto.roles.filter(
+      (role) => !Object.values(Role).includes(role as Role),
+    )
+    if (invalidRoles.length > 0) {
+      throw new BadRequestException(
+        `Roles inválidos: ${invalidRoles.join(', ')}. Roles válidos: ${Object.values(Role).join(', ')}`,
+      )
     }
 
     // 3. Hashear contraseña
@@ -51,7 +52,7 @@ export class CreateUserHandler implements ICommandHandler<CreateUserCommand> {
       username: dto.username,
       password: hashedPassword,
       ci: dto.ci,
-      roles,
+      roles: dto.roles as Role[],
       phone: dto.phone,
       address: dto.address,
       image: dto.image,

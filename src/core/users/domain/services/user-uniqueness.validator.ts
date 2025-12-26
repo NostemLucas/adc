@@ -1,6 +1,4 @@
-import { Injectable, Inject } from '@nestjs/common'
 import type { IUserRepository } from '../repositories'
-import { USER_REPOSITORY } from '../repositories'
 import {
   DuplicateEmailException,
   DuplicateUsernameException,
@@ -16,13 +14,11 @@ import {
  * - Es reutilizable entre múltiples Use Cases
  * - No tiene estado (stateless)
  *
+ * IMPORTANT: This is a PURE domain service (framework-agnostic).
+ * No NestJS decorators here. DI configuration happens in the infrastructure layer.
  */
-@Injectable()
 export class UserUniquenessValidator {
-  constructor(
-    @Inject(USER_REPOSITORY)
-    private readonly userRepository: IUserRepository,
-  ) {}
+  constructor(private readonly userRepository: IUserRepository) {}
 
   /**
    * Valida que email, username y CI sean únicos en el sistema.

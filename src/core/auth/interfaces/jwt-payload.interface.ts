@@ -2,7 +2,9 @@ export interface JwtPayload {
   sub: string // User ID
   username: string
   email: string
-  roles: string[] // Role names
+  roles: string[] // All user roles
+  currentRole: string // Active role for this session
+  sessionId: string // Session ID
   iat?: number // Issued at
   exp?: number // Expiration
 }
@@ -12,6 +14,8 @@ export interface TokenPair {
   refreshToken: string
 }
 
+import type { MenuItem } from '../domain/authorization'
+
 export interface LoginResponse {
   user: {
     id: string
@@ -19,6 +23,9 @@ export interface LoginResponse {
     email: string
     fullName: string
     roles: string[]
+    currentRole: string
   }
   tokens: TokenPair
+  menus: MenuItem[]
+  permissions: string[]
 }

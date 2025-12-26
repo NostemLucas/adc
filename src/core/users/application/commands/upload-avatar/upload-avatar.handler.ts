@@ -1,7 +1,7 @@
 import { CommandHandler, ICommandHandler } from '@nestjs/cqrs'
 import { Inject } from '@nestjs/common'
 import type { IUserRepository } from '../../../domain/repositories'
-import { USER_REPOSITORY } from '../../../domain/repositories'
+import { USER_REPOSITORY } from '../../../infrastructure'
 import { FileStorageService } from '@shared/file-upload'
 import { UploadAvatarCommand } from './upload-avatar.command'
 

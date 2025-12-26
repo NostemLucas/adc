@@ -1,16 +1,14 @@
 import { Test, TestingModule } from '@nestjs/testing'
 import { UsersController } from './users.controller'
-import {
-  CreateUserUseCase,
-  UpdateUserUseCase,
-  GetUserUseCase,
-  ListUsersUseCase,
-  DeleteUserUseCase,
-} from './application/use-cases'
-import { CreateUserDto } from './application/dto/create-user.dto'
-import { UpdateUserDto } from './application/dto/update-user.dto'
-import { User } from './domain/user.entity'
-import { Role } from '../roles/domain/role.entity'
+import { CreateUserUseCase } from './application/commands/create-user/create-user.use-case'
+import { UpdateUserUseCase } from './application/commands/update-user/update-user.use-case'
+import { DeleteUserUseCase } from './application/commands/delete-user/delete-user.use-case'
+import { GetUserUseCase } from './application/queries/get-user/get-user.use-case'
+import { ListUsersUseCase } from './application/queries/list-users/list-users.use-case'
+import { CreateUserDto } from './application/commands/create-user/create-user.dto'
+import { UpdateUserDto } from './application/commands/update-user/update-user.dto'
+import { User } from './domain/user'
+import { Role } from '../auth/domain/authorization'
 import { UserStatus } from '@prisma/client'
 
 describe('UsersController', () => {
@@ -21,7 +19,8 @@ describe('UsersController', () => {
   let listUsersUseCase: jest.Mocked<ListUsersUseCase>
   let deleteUserUseCase: jest.Mocked<DeleteUserUseCase>
 
-  const VALID_BCRYPT_HASH = '$2b$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy'
+  const VALID_BCRYPT_HASH =
+    '$2b$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy'
 
   const mockRole: Role = {
     id: 'role-1',
@@ -306,7 +305,10 @@ describe('UsersController', () => {
       const result = await controller.update('user-1', updateUserDto)
 
       // Assert
-      expect(updateUserUseCase.execute).toHaveBeenCalledWith('user-1', updateUserDto)
+      expect(updateUserUseCase.execute).toHaveBeenCalledWith(
+        'user-1',
+        updateUserDto,
+      )
       expect(result.names).toBe('Juan Carlos')
       expect(result.email).toBe('juancarlos@example.com')
     })

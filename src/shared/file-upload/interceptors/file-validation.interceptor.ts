@@ -56,8 +56,9 @@ export class FileValidationInterceptor implements NestInterceptor {
             this.validationOptions || {},
           )
         } catch (error) {
+          const message = error instanceof Error ? error.message : 'Invalid file'
           throw new BadRequestException(
-            `Archivo ${index + 1}: ${error.message}`,
+            `Archivo ${index + 1}: ${message}`,
           )
         }
       })

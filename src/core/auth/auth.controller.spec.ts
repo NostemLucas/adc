@@ -3,8 +3,8 @@ import { AuthController } from './auth.controller'
 import { AuthService } from './services/auth.service'
 import { LoginDto } from './dto/login.dto'
 import { RefreshTokenDto } from './dto/refresh-token.dto'
-import { User } from '../users/domain/user.entity'
-import { Role } from '../roles/domain/role.entity'
+import { User } from '../users/domain/user'
+import { Role } from './domain/authorization'
 import { UserStatus } from '@prisma/client'
 import type { Request } from 'express'
 
@@ -12,16 +12,8 @@ describe('AuthController', () => {
   let controller: AuthController
   let authService: jest.Mocked<AuthService>
 
-  const VALID_BCRYPT_HASH = '$2b$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy'
-
-  const mockRole: Role = {
-    id: 'role-1',
-    name: 'ADMINISTRADOR',
-    description: 'Administrador del sistema',
-    createdAt: new Date(),
-    updatedAt: new Date(),
-    deletedAt: null,
-  }
+  const VALID_BCRYPT_HASH =
+    '$2b$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy'
 
   const mockUser: User = {
     id: 'user-1',
@@ -38,7 +30,7 @@ describe('AuthController', () => {
     status: UserStatus.ACTIVE,
     failedLoginAttempts: 0,
     lockUntil: null,
-    roles: [mockRole],
+    roles: [Role.ADMINISTRADOR],
     get fullName() {
       return `${this.names} ${this.lastNames}`
     },
@@ -123,6 +115,7 @@ describe('AuthController', () => {
         'password123',
         '192.168.1.1',
         'Mozilla/5.0',
+        undefined,
       )
       expect(result).toEqual(mockLoginResponse)
     })
@@ -151,6 +144,7 @@ describe('AuthController', () => {
         'password123',
         '10.0.0.1',
         'Chrome/91.0',
+        undefined,
       )
     })
 
@@ -176,6 +170,7 @@ describe('AuthController', () => {
         'password123',
         '192.168.1.1',
         undefined,
+        undefined,
       )
     })
 
@@ -192,7 +187,11 @@ describe('AuthController', () => {
       authService.login.mockResolvedValue(mockLoginResponse as any)
 
       // Act
-      const result = await controller.login(loginDto, mockRequest, '192.168.1.1')
+      const result = await controller.login(
+        loginDto,
+        mockRequest,
+        '192.168.1.1',
+      )
 
       // Assert
       expect(result.user.id).toBe('user-1')
@@ -215,7 +214,9 @@ describe('AuthController', () => {
       const result = await controller.refresh(refreshTokenDto)
 
       // Assert
-      expect(authService.refreshTokens).toHaveBeenCalledWith('old-refresh-token')
+      expect(authService.refreshTokens).toHaveBeenCalledWith(
+        'old-refresh-token',
+      )
       expect(result).toEqual(mockTokens)
     })
 
@@ -239,7 +240,9 @@ describe('AuthController', () => {
       const refreshTokenDto: RefreshTokenDto = {
         refreshToken: 'invalid-token',
       }
-      authService.refreshTokens.mockRejectedValue(new Error('Invalid refresh token'))
+      authService.refreshTokens.mockRejectedValue(
+        new Error('Invalid refresh token'),
+      )
 
       // Act & Assert
       await expect(controller.refresh(refreshTokenDto)).rejects.toThrow(
@@ -276,7 +279,10 @@ describe('AuthController', () => {
       await controller.logout(anotherUser as any, refreshTokenDto)
 
       // Assert
-      expect(authService.logout).toHaveBeenCalledWith('user-999', 'refresh-token')
+      expect(authService.logout).toHaveBeenCalledWith(
+        'user-999',
+        'refresh-token',
+      )
     })
 
     it('debe retornar mensaje de confirmación', async () => {
@@ -304,7 +310,9 @@ describe('AuthController', () => {
 
       // Assert
       expect(authService.logoutAll).toHaveBeenCalledWith('user-1')
-      expect(result).toEqual({ message: 'Todas las sesiones han sido cerradas' })
+      expect(result).toEqual({
+        message: 'Todas las sesiones han sido cerradas',
+      })
     })
 
     it('debe usar el ID del usuario autenticado', async () => {
@@ -334,7 +342,7 @@ describe('AuthController', () => {
   describe('getProfile', () => {
     it('debe retornar el perfil del usuario autenticado', async () => {
       // Act
-      const result = await controller.getProfile(mockUser)
+      const result = await controller.getProfile(mockUser, Role.ADMINISTRADOR)
 
       // Assert
       expect(result).toEqual({
@@ -342,7 +350,8 @@ describe('AuthController', () => {
         username: 'juanp',
         email: 'juan@example.com',
         fullName: 'Juan Pérez',
-        roles: ['ADMINISTRADOR'],
+        roles: [Role.ADMINISTRADOR],
+        currentRole: Role.ADMINISTRADOR,
       })
     })
 
@@ -350,18 +359,15 @@ describe('AuthController', () => {
       // Arrange
       const userWithMultipleRoles = {
         ...mockUser,
-        roles: [
-          mockRole,
-          { ...mockRole, id: 'role-2', name: 'GERENTE' },
-          { ...mockRole, id: 'role-3', name: 'AUDITOR' },
-        ],
+        roles: [Role.ADMINISTRADOR, Role.GERENTE, Role.AUDITOR],
       }
 
       // Act
-      const result = await controller.getProfile(userWithMultipleRoles as any)
+      const result = await controller.getProfile(userWithMultipleRoles as any, Role.ADMINISTRADOR)
 
       // Assert
-      expect(result.roles).toEqual(['ADMINISTRADOR', 'GERENTE', 'AUDITOR'])
+      expect(result.roles).toEqual([Role.ADMINISTRADOR, Role.GERENTE, Role.AUDITOR])
+      expect(result.currentRole).toBe(Role.ADMINISTRADOR)
     })
 
     it('debe usar el fullName computado de la entidad User', async () => {
@@ -376,7 +382,7 @@ describe('AuthController', () => {
       }
 
       // Act
-      const result = await controller.getProfile(userWithDifferentName as any)
+      const result = await controller.getProfile(userWithDifferentName as any, Role.ADMINISTRADOR)
 
       // Assert
       expect(result.fullName).toBe('María García')

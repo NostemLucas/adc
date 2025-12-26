@@ -9,7 +9,7 @@ import { Server, Socket } from 'socket.io'
 import { Injectable, Logger, UnauthorizedException, Inject } from '@nestjs/common'
 import { JwtService } from '@nestjs/jwt'
 import type { IUserRepository } from 'src/core/users/domain/repositories'
-import { USER_REPOSITORY } from 'src/core/users/domain/repositories'
+import { USER_REPOSITORY } from 'src/core/users/infrastructure'
 import { NotificationResponseDto } from '../application/dto/notification-response.dto'
 
 @Injectable()
@@ -24,7 +24,7 @@ export class NotificationsGateway
   implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect
 {
   @WebSocketServer()
-  server: Server
+  server!: Server
 
   private readonly logger = new Logger(NotificationsGateway.name)
 
@@ -83,7 +83,8 @@ export class NotificationsGateway
 
       this.logger.log(`Client connected: ${client.id} (User: ${user.username})`)
     } catch (error) {
-      this.logger.error(`Connection error: ${error.message}`)
+      const message = error instanceof Error ? error.message : 'Unknown error'
+      this.logger.error(`Connection error: ${message}`)
       client.disconnect()
     }
   }

@@ -7,5 +7,5 @@ export class ForgotPasswordDto {
     description: 'Email del usuario que olvidó su contraseña',
   })
   @IsEmail({}, { message: 'Debe ser un email válido' })
-  email: string
+  email!: string
 }

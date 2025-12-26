@@ -7,7 +7,7 @@ export class ResetPasswordDto {
     description: 'Token de recuperación recibido por email',
   })
   @IsString()
-  token: string
+  token!: string
 
   @ApiProperty({
     example: 'NewSecurePass123!',
@@ -19,5 +19,5 @@ export class ResetPasswordDto {
   @Matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/, {
     message: 'La contraseña debe contener al menos una mayúscula, una minúscula y un número',
   })
-  newPassword: string
+  newPassword!: string
 }

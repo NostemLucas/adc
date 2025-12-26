@@ -9,10 +9,10 @@ import { ConfigService } from '@nestjs/config'
 import * as bcrypt from 'bcrypt'
 import * as crypto from 'crypto'
 import type { IUserRepository } from 'src/core/users/domain/repositories'
-import { USER_REPOSITORY } from 'src/core/users/domain/repositories'
+import { USER_REPOSITORY } from 'src/core/users/infrastructure'
 import { SessionRepository } from 'src/core/sessions/infrastructure/session.repository'
 import { OtpRepository } from '../infrastructure/otp.repository'
-import { User } from 'src/core/users/domain/user.entity'
+import { User } from 'src/core/users/domain/user'
 import { Session } from 'src/core/sessions/domain/session.entity'
 import { Otp } from '../domain/otp.entity'
 import {
@@ -21,6 +21,11 @@ import {
   LoginResponse,
 } from '../interfaces/jwt-payload.interface'
 import { EmailService } from '@shared/email'
+import {
+  MenuFilter,
+  RolePermissionChecker,
+  Role,
+} from '../domain/authorization'
 
 /**
  * AuthService refactored to use Prisma repositories
@@ -46,6 +51,7 @@ export class AuthService {
     password: string,
     ipAddress?: string,
     userAgent?: string,
+    preferredRole?: Role,
   ): Promise<LoginResponse> {
     // Buscar usuario por username o email
     const user = await this.userRepository.findByUsernameOrEmail(username)
@@ -98,18 +104,41 @@ export class AuthService {
     user.resetLoginAttempts()
     await this.userRepository.save(user)
 
-    // Generar tokens
-    const tokens = await this.generateTokenPair(user)
+    // Determinar rol activo para esta sesión
+    let currentRole = preferredRole || user.roles[0]
 
-    // Crear sesión usando el factory method de Session
+    // Validar que el rol preferido esté en la lista de roles del usuario
+    if (preferredRole && !user.roles.includes(preferredRole)) {
+      throw new BadRequestException(
+        `El rol ${preferredRole} no está disponible para este usuario`,
+      )
+    }
+
+    // Crear sesión con rol activo
     const session = Session.create({
       userId: user.id,
-      refreshToken: tokens.refreshToken,
+      refreshToken: '', // Se asignará después de generar tokens
+      currentRole,
       expiresAt: new Date(Date.now() + this.getRefreshTokenExpirationMs()),
       ipAddress,
       userAgent,
     })
     await this.sessionRepository.save(session)
+
+    // Generar tokens con sessionId y currentRole
+    const tokens = await this.generateTokenPair(user, session.id, currentRole)
+
+    // Actualizar sesión con refreshToken
+    session.updateRefreshToken(
+      tokens.refreshToken,
+      new Date(Date.now() + this.getRefreshTokenExpirationMs()),
+    )
+    await this.sessionRepository.save(session)
+
+    // Generar menús y permisos basados en el rol ACTIVO de la sesión
+    const menus = MenuFilter.getMenusForRole(currentRole)
+    const permissions =
+      RolePermissionChecker.getPermissionsAsStrings(currentRole)
 
     return {
       user: {
@@ -117,9 +146,12 @@ export class AuthService {
         username: user.username.getValue(),
         email: user.email.getValue(),
         fullName: user.fullName,
-        roles: user.roles.map((role) => role.name),
+        roles: user.roles, // Todos los roles disponibles
+        currentRole, // Rol activo de esta sesión
       },
       tokens,
+      menus,
+      permissions,
     }
   }
 
@@ -150,13 +182,17 @@ export class AuthService {
         throw new UnauthorizedException('Usuario no autorizado')
       }
 
-      // Generar nuevos tokens
-      const tokens = await this.generateTokenPair(user)
+      // Generar nuevos tokens con el currentRole de la sesión
+      const tokens = await this.generateTokenPair(
+        user,
+        session.id,
+        session.currentRole,
+      )
 
       // Actualizar la sesión con el nuevo refresh token
-      session.refreshToken = tokens.refreshToken
-      session.expiresAt = new Date(
-        Date.now() + this.getRefreshTokenExpirationMs(),
+      session.updateRefreshToken(
+        tokens.refreshToken,
+        new Date(Date.now() + this.getRefreshTokenExpirationMs()),
       )
       session.updateLastUsed()
       await this.sessionRepository.save(session)
@@ -201,14 +237,20 @@ export class AuthService {
   }
 
   /**
-   * Genera un par de tokens (access y refresh)
+   * Genera un par de tokens (access y refresh) para una sesión específica
    */
-  private async generateTokenPair(user: User): Promise<TokenPair> {
+  async generateTokenPair(
+    user: User,
+    sessionId: string,
+    currentRole: Role,
+  ): Promise<TokenPair> {
     const payload: JwtPayload = {
       sub: user.id,
       username: user.username.getValue(),
       email: user.email.getValue(),
-      roles: user.roles.map((role) => role.name),
+      roles: user.roles, // Todos los roles del usuario
+      currentRole, // Rol activo de la sesión
+      sessionId, // ID de la sesión
     }
 
     const [accessToken, refreshToken] = await Promise.all([
@@ -382,5 +424,59 @@ export class AuthService {
     await this.otpRepository.save(otp)
 
     return true
+  }
+
+  /**
+   * Cambia el rol activo de una sesión específica
+   */
+  async switchRole(sessionId: string, newRole: Role): Promise<LoginResponse> {
+    // Buscar sesión
+    const session = await this.sessionRepository.findByIdOrFail(sessionId)
+
+    if (!session.isValid) {
+      throw new UnauthorizedException('Sesión inválida o expirada')
+    }
+
+    // Buscar usuario
+    const user = await this.userRepository.findByIdOrFail(session.userId)
+
+    // Verificar que el usuario tenga el rol solicitado
+    if (!user.roles.includes(newRole)) {
+      throw new BadRequestException(
+        `El rol ${newRole} no está disponible para este usuario. Roles disponibles: ${user.roles.join(', ')}`,
+      )
+    }
+
+    // Cambiar rol activo de la sesión
+    session.switchRole(newRole)
+    await this.sessionRepository.save(session)
+
+    // Regenerar tokens con el nuevo rol
+    const tokens = await this.generateTokenPair(user, session.id, newRole)
+
+    // Actualizar refresh token en sesión
+    session.updateRefreshToken(
+      tokens.refreshToken,
+      new Date(Date.now() + this.getRefreshTokenExpirationMs()),
+    )
+    await this.sessionRepository.save(session)
+
+    // Menús y permisos del nuevo rol activo
+    const menus = MenuFilter.getMenusForRole(newRole)
+    const permissions = RolePermissionChecker.getPermissionsAsStrings(newRole)
+
+    return {
+      user: {
+        id: user.id,
+        username: user.username.getValue(),
+        email: user.email.getValue(),
+        fullName: user.fullName,
+        roles: user.roles,
+        currentRole: newRole,
+      },
+      tokens,
+      menus,
+      permissions,
+    }
   }
 }

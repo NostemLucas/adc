@@ -5,16 +5,16 @@ import { ApiProperty } from '@nestjs/swagger'
  */
 export class BadRequestErrorDto {
   @ApiProperty({ example: 400 })
-  statusCode: number
+  statusCode!: number
 
   @ApiProperty({
     example: 'Datos de entrada inválidos',
     description: 'Mensaje descriptivo del error de validación',
   })
-  message: string
+  message!: string
 
   @ApiProperty({ example: 'Bad Request' })
-  error: string
+  error!: string
 }
 
 /**
@@ -22,16 +22,16 @@ export class BadRequestErrorDto {
  */
 export class UnauthorizedErrorDto {
   @ApiProperty({ example: 401 })
-  statusCode: number
+  statusCode!: number
 
   @ApiProperty({
     example: 'No autorizado',
     description: 'El usuario no está autenticado o el token es inválido',
   })
-  message: string
+  message!: string
 
   @ApiProperty({ example: 'Unauthorized' })
-  error: string
+  error!: string
 }
 
 /**
@@ -39,16 +39,16 @@ export class UnauthorizedErrorDto {
  */
 export class ForbiddenErrorDto {
   @ApiProperty({ example: 403 })
-  statusCode: number
+  statusCode!: number
 
   @ApiProperty({
     example: 'Acceso denegado',
     description: 'El usuario no tiene permisos para acceder a este recurso',
   })
-  message: string
+  message!: string
 
   @ApiProperty({ example: 'Forbidden' })
-  error: string
+  error!: string
 }
 
 /**
@@ -56,16 +56,16 @@ export class ForbiddenErrorDto {
  */
 export class NotFoundErrorDto {
   @ApiProperty({ example: 404 })
-  statusCode: number
+  statusCode!: number
 
   @ApiProperty({
     example: 'Recurso no encontrado',
     description: 'El recurso solicitado no existe',
   })
-  message: string
+  message!: string
 
   @ApiProperty({ example: 'Not Found' })
-  error: string
+  error!: string
 }
 
 /**
@@ -73,16 +73,16 @@ export class NotFoundErrorDto {
  */
 export class ConflictErrorDto {
   @ApiProperty({ example: 409 })
-  statusCode: number
+  statusCode!: number
 
   @ApiProperty({
     example: 'El recurso ya existe',
     description: 'Conflicto con el estado actual del recurso',
   })
-  message: string
+  message!: string
 
   @ApiProperty({ example: 'Conflict' })
-  error: string
+  error!: string
 }
 
 /**
@@ -90,14 +90,14 @@ export class ConflictErrorDto {
  */
 export class InternalServerErrorDto {
   @ApiProperty({ example: 500 })
-  statusCode: number
+  statusCode!: number
 
   @ApiProperty({
     example: 'Error interno del servidor',
     description: 'Ha ocurrido un error inesperado',
   })
-  message: string
+  message!: string
 
   @ApiProperty({ example: 'Internal Server Error' })
-  error: string
+  error!: string
 }

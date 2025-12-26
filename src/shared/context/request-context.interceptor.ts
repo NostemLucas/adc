@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common'
 import { Observable } from 'rxjs'
 import { RequestContext } from './request-context.service'
-import { User } from 'src/core/users/domain/user.entity'
+import { User } from 'src/core/users/domain/user'
 import { randomUUID } from 'crypto'
 
 /**
