@@ -1,5 +1,8 @@
 /**
  * Shared Domain Exceptions
+ *
+ * Note: DomainException is now in @shared/domain
  */
 
-export * from './domain.exception'
+// Re-export for backwards compatibility
+export { DomainException } from '@shared/domain'

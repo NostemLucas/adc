@@ -1,4 +1,4 @@
-import { DomainException } from './domain.exception'
+import { DomainException } from '@shared/domain'
 
 export class InvalidOrganizationDataException extends DomainException {
   constructor(message: string) {

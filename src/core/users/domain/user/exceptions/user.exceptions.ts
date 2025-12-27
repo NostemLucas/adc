@@ -1,4 +1,4 @@
-import { DomainException } from '../../shared/exceptions/domain.exception'
+import { DomainException } from '@shared/domain'
 
 // ===== EXCEPCIONES DE VALIDACIÓN =====
 
