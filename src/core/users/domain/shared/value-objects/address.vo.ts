@@ -29,9 +29,7 @@ export class Address {
 
     // Validar longitud máxima
     if (trimmed.length > 200) {
-      throw new Error(
-        'La dirección no puede tener más de 200 caracteres',
-      )
+      throw new Error('La dirección no puede tener más de 200 caracteres')
     }
 
     // Normalizar: reemplazar múltiples espacios por uno solo

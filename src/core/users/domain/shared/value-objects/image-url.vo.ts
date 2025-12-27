@@ -31,9 +31,7 @@ export class ImageUrl {
     const isValidUrl = ImageUrl.isValidUrlOrPath(trimmed)
 
     if (!isValidUrl) {
-      throw new Error(
-        'La URL de imagen no es válida',
-      )
+      throw new Error('La URL de imagen no es válida')
     }
 
     return new ImageUrl(trimmed)

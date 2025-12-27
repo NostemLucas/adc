@@ -5,18 +5,6 @@ import {
   DuplicateCiException,
 } from '../../user/exceptions'
 
-/**
- * Domain Service para validar unicidad de usuarios.
- *
- * Este es un Domain Service porque:
- * - Encapsula lógica de dominio (unicidad de usuarios)
- * - Requiere acceso al repositorio (no puede ir en la entidad)
- * - Es reutilizable entre múltiples Use Cases
- * - No tiene estado (stateless)
- *
- * IMPORTANT: This is a PURE domain service (framework-agnostic).
- * No NestJS decorators here. DI configuration happens in the infrastructure layer.
- */
 export class UserUniquenessValidator {
   constructor(private readonly userRepository: IUserRepository) {}
 
@@ -48,7 +36,6 @@ export class UserUniquenessValidator {
     username: string,
     ci: string,
   ): Promise<void> {
-    // Ejecutar las 3 validaciones en paralelo para mejor performance
     const [existingEmail, existingUsername, existingCi] = await Promise.all([
       this.userRepository.findByEmail(email),
       this.userRepository.findByUsername(username),

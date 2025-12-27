@@ -69,19 +69,14 @@ npm run seed
 
 Opción B: Crear manualmente usando SQL o Postman
 
-### Crear Roles (SQL)
-```sql
-INSERT INTO roles (id, name, description, "createdAt", "updatedAt") VALUES
-('1', 'administrador', 'Acceso total al sistema', NOW(), NOW()),
-('2', 'gerente', 'Gestión de auditorías', NOW(), NOW()),
-('3', 'auditor', 'Realización de auditorías', NOW(), NOW()),
-('4', 'cliente', 'Cliente del sistema', NOW(), NOW());
-```
+### Crear Usuario Interno (Admin) - SQL
 
-### Crear Usuario Admin (SQL)
 ```sql
--- Primero crear el usuario
-INSERT INTO users (id, names, "lastNames", email, username, password, ci, status, "failedLoginAttempts", "createdAt", "updatedAt")
+-- 1. Crear el usuario base
+INSERT INTO "User" (
+  id, names, "lastNames", email, username, password, ci,
+  type, status, "failedLoginAttempts", "createdAt", "updatedAt"
+)
 VALUES (
   gen_random_uuid(),
   'Administrador',
@@ -90,17 +85,76 @@ VALUES (
   'admin',
   '$2b$10$YourHashedPasswordHere', -- Usa bcrypt para hashear 'Admin123!'
   '12345678',
-  'active',
+  'INTERNAL',  -- Tipo de usuario
+  'ACTIVE',
   0,
   NOW(),
   NOW()
-);
+) RETURNING id;
 
--- Luego asignar el rol (reemplaza los UUIDs con los reales)
-INSERT INTO user_roles (user_id, role_id)
-SELECT u.id, r.id
-FROM users u, roles r
-WHERE u.email = 'admin@audit.com' AND r.name = 'administrador';
+-- 2. Crear el perfil interno con roles
+INSERT INTO "InternalProfile" (
+  id, "userId", roles, "createdAt", "updatedAt"
+)
+SELECT
+  gen_random_uuid(),
+  u.id,
+  ARRAY['ADMINISTRADOR']::text[],  -- Roles como array
+  NOW(),
+  NOW()
+FROM "User" u
+WHERE u.email = 'admin@audit.com';
+```
+
+### Crear Usuario Externo (Cliente) - SQL
+
+```sql
+-- 1. Primero necesitas una organización
+INSERT INTO "Organization" (
+  id, name, email, phone, "createdAt", "updatedAt"
+)
+VALUES (
+  gen_random_uuid(),
+  'Empresa Demo',
+  'contacto@empresademo.com',
+  '72345678',
+  NOW(),
+  NOW()
+) RETURNING id;
+
+-- 2. Crear el usuario externo
+INSERT INTO "User" (
+  id, names, "lastNames", email, username, password, ci,
+  type, status, "failedLoginAttempts", "createdAt", "updatedAt"
+)
+VALUES (
+  gen_random_uuid(),
+  'Cliente',
+  'Demo',
+  'cliente@empresademo.com',
+  'clientedemo',
+  '$2b$10$YourHashedPasswordHere',
+  '87654321',
+  'EXTERNAL',  -- Tipo externo
+  'ACTIVE',
+  0,
+  NOW(),
+  NOW()
+) RETURNING id;
+
+-- 3. Crear el perfil externo
+INSERT INTO "ExternalProfile" (
+  id, "userId", "organizationId", "createdAt", "updatedAt"
+)
+SELECT
+  gen_random_uuid(),
+  u.id,
+  o.id,
+  NOW(),
+  NOW()
+FROM "User" u, "Organization" o
+WHERE u.email = 'cliente@empresademo.com'
+  AND o.name = 'Empresa Demo';
 ```
 
 ## Paso 6: Probar la API
@@ -132,7 +186,11 @@ curl -X POST http://localhost:3000/auth/login \
     "username": "admin",
     "email": "admin@audit.com",
     "fullName": "Administrador Sistema",
-    "roles": ["administrador"]
+    "type": "INTERNAL",
+    "status": "ACTIVE"
+  },
+  "profile": {
+    "roles": ["ADMINISTRADOR"]
   },
   "tokens": {
     "accessToken": "eyJhbGc...",
@@ -234,23 +292,35 @@ audit2/
 
 ## Credenciales por Defecto
 
-Después de ejecutar el seed:
+Después de ejecutar el seed o crear usuarios manualmente:
 
-**Administrador:**
-- Email: `admin@audit.com`
-- Password: `Admin123!`
+**Usuarios Internos (Staff):**
 
-**Gerente:**
-- Email: `maria.garcia@audit.com`
-- Password: `Gerente123!`
+- **Administrador**
+  - Email: `admin@audit.com`
+  - Password: `Admin123!`
+  - Tipo: INTERNAL
+  - Roles: ADMINISTRADOR
 
-**Auditor:**
-- Email: `juan.perez@audit.com`
-- Password: `Auditor123!`
+- **Gerente**
+  - Email: `maria.garcia@audit.com`
+  - Password: `Gerente123!`
+  - Tipo: INTERNAL
+  - Roles: GERENTE
 
-**Cliente:**
-- Email: `ana.lopez@cliente.com`
-- Password: `Cliente123!`
+- **Auditor**
+  - Email: `juan.perez@audit.com`
+  - Password: `Auditor123!`
+  - Tipo: INTERNAL
+  - Roles: AUDITOR
+
+**Usuarios Externos (Clientes):**
+
+- **Cliente Demo**
+  - Email: `cliente@empresademo.com`
+  - Password: `Cliente123!`
+  - Tipo: EXTERNAL
+  - Organización: Empresa Demo
 
 ## Soporte
 

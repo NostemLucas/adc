@@ -11,13 +11,28 @@ Sistema completo de autenticación con JWT, refresh tokens, OTP, roles y bloqueo
 - JWT Refresh Token (7 días por defecto)
 - Logout individual y global (todas las sesiones)
 
-### 2. Roles y Permisos
+### 2. Sistema de Perfiles Separados
+
+El sistema utiliza **perfiles separados** basados en el tipo de usuario:
+
+#### Usuarios Internos (INTERNAL)
+Usuarios del sistema (staff) con roles administrativos:
 - **ADMINISTRADOR**: Acceso total al sistema
 - **GERENTE**: Gestión de auditorías
 - **AUDITOR**: Realización de auditorías
-- **CLIENTE**: Rol exclusivo (no puede combinarse con otros)
+- Los roles son **acumulables** (un usuario puede tener múltiples roles)
 
-**Regla importante**: Si un usuario tiene el rol CLIENTE, no puede tener ningún otro rol. Los demás roles (ADMINISTRADOR, GERENTE, AUDITOR) sí pueden combinarse entre sí.
+#### Usuarios Externos (EXTERNAL)
+Usuarios clientes de organizaciones:
+- Asociados a una **organización específica**
+- Acceso limitado a datos de su organización
+- No tienen roles administrativos
+
+**Arquitectura:**
+- Cada `User` tiene un campo `type` (INTERNAL/EXTERNAL) **inmutable**
+- `InternalProfile` contiene roles y datos administrativos
+- `ExternalProfile` contiene organización y datos del cliente
+- Separación física en base de datos para mayor seguridad
 
 ### 3. Sesiones
 - Múltiples sesiones por usuario
@@ -140,7 +155,11 @@ Login de usuario con bloqueo por intentos.
     "username": "usuario",
     "email": "usuario@example.com",
     "fullName": "Nombre Completo",
-    "roles": ["administrador"]
+    "type": "INTERNAL",
+    "status": "ACTIVE"
+  },
+  "profile": {
+    "roles": ["ADMINISTRADOR", "AUDITOR"]
   },
   "tokens": {
     "accessToken": "eyJhbGc...",
@@ -210,13 +229,17 @@ Authorization: Bearer <accessToken>
 ```typescript
 import { Controller, Get } from '@nestjs/common';
 import { CurrentUser } from './core/auth/decorators/current-user.decorator';
-import { User } from './core/users/domain/entities';
+import { User } from './core/users/domain/user';
 
 @Controller('protected')
 export class ProtectedController {
   @Get('data')
   getData(@CurrentUser() user: User) {
-    return { message: 'Datos protegidos', user: user.fullName };
+    return {
+      message: 'Datos protegidos',
+      user: user.fullName,
+      type: user.type
+    };
   }
 }
 ```
@@ -240,17 +263,17 @@ export class PublicController {
 
 ```typescript
 import { Roles } from './core/auth/decorators/roles.decorator';
-import { RoleType } from './core/roles/constants';
+import { Role } from './core/auth/domain/authorization';
 
 @Controller('admin')
 export class AdminController {
-  @Roles(RoleType.ADMINISTRADOR)
+  @Roles(Role.ADMINISTRADOR)
   @Get('dashboard')
   getDashboard() {
     return { message: 'Dashboard de administrador' };
   }
 
-  @Roles(RoleType.ADMINISTRADOR, RoleType.GERENTE)
+  @Roles(Role.ADMINISTRADOR, Role.GERENTE)
   @Get('reports')
   getReports() {
     return { message: 'Accesible para admin o gerente' };
@@ -258,36 +281,48 @@ export class AdminController {
 }
 ```
 
-## Validación de Roles
+## Creación de Usuarios
 
-### ✅ Usuario con rol de Cliente (exclusivo)
+### ✅ Crear Usuario Interno (Staff)
 ```typescript
-const clientUser = User.create({
+import { CreateUserCommand } from './core/users/application/internal-profile';
+import { UserType } from './core/users/domain';
+
+const command = new CreateUserCommand({
   names: 'Juan',
   lastNames: 'Pérez',
   email: 'juan@example.com',
   username: 'juanp',
-  password: hashedPassword,
+  password: 'SecurePass123',
   ci: '12345678',
-  roles: [clientRole]
+  type: UserType.INTERNAL,
+  roles: [Role.ADMINISTRADOR, Role.AUDITOR] // Múltiples roles OK
 });
+
+await this.commandBus.execute(command);
 ```
 
-### ❌ Cliente con otros roles (ERROR)
+### ✅ Crear Usuario Externo (Cliente)
 ```typescript
-const user = User.create({
-  ...
-  roles: [clientRole, auditorRole]
+const command = new CreateExternalUserCommand({
+  names: 'María',
+  lastNames: 'González',
+  email: 'maria@clienteorg.com',
+  username: 'mariag',
+  password: 'SecurePass123',
+  ci: '87654321',
+  type: UserType.EXTERNAL,
+  organizationId: 'org-uuid' // Asociado a organización
 });
-// Error: "El rol de CLIENTE es exclusivo y no puede combinarse con otros roles"
+
+await this.commandBus.execute(command);
 ```
 
-### ✅ Usuario con múltiples roles combinables
+### ❌ Cambiar tipo de usuario (INMUTABLE)
 ```typescript
-const adminUser = User.create({
-  ...
-  roles: [adminRole, gerenteRole, auditorRole]
-});
+// El campo 'type' NO puede modificarse después de la creación
+user.type = UserType.EXTERNAL;
+// Error: "El tipo de usuario es inmutable y no puede ser modificado"
 ```
 
 ## Bloqueo por Intentos Fallidos
@@ -318,17 +353,39 @@ NODE_ENV=development
 
 ## Arquitectura
 
+### Estructura del Proyecto
 ```
 src/
 ├── core/
-│   ├── auth/              # Sistema de autenticación
-│   ├── users/             # Gestión de usuarios
-│   ├── roles/             # Sistema de roles
-│   ├── sessions/          # Manejo de sesiones
-│   └── otp/               # Códigos de verificación
-├── shared/                # Código compartido
-└── app/                   # Módulos de negocio
+│   ├── auth/                      # Sistema de autenticación
+│   │   └── domain/authorization/  # Roles, permisos y menús
+│   ├── users/                     # Gestión de usuarios (DDD)
+│   │   ├── domain/
+│   │   │   ├── user/             # Agregado User
+│   │   │   ├── internal-profile/ # Agregado InternalProfile
+│   │   │   ├── external-profile/ # Agregado ExternalProfile
+│   │   │   └── shared/           # Value Objects, Services
+│   │   ├── application/          # Use Cases (CQRS)
+│   │   └── infrastructure/       # Repositorios
+│   ├── organizations/             # Gestión de organizaciones
+│   ├── sessions/                  # Manejo de sesiones
+│   ├── notifications/             # Sistema de notificaciones
+│   └── otp/                       # Códigos de verificación
+├── shared/                        # Código compartido
+│   ├── domain/                    # Base classes DDD
+│   ├── validators/                # Validadores custom
+│   ├── file-upload/               # Sistema de archivos
+│   ├── email/                     # Sistema de emails
+│   └── logger/                    # Sistema de logging
+└── app.module.ts
 ```
+
+### Patrones Implementados
+- **DDD (Domain-Driven Design)**: Agregados User, InternalProfile, ExternalProfile
+- **CQRS**: Separación de Commands y Queries
+- **Event Sourcing**: Eventos de dominio para auditoría
+- **Repository Pattern**: Abstracción de persistencia
+- **Value Objects**: Email, CI, Phone, etc.
 
 ## Seguridad
 
