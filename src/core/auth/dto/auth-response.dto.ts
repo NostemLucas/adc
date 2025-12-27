@@ -26,12 +26,15 @@ export class LoginResponseDto {
       username: { type: 'string', example: 'johndoe' },
       email: { type: 'string', example: 'john.doe@example.com' },
       fullName: { type: 'string', example: 'John Doe' },
+      type: { type: 'string', example: 'internal', enum: ['internal', 'external'] },
       roles: {
         type: 'array',
         items: { type: 'string' },
-        example: ['ADMINISTRADOR', 'GERENTE'],
+        example: ['administrador', 'gerente'],
+        required: false,
       },
-      currentRole: { type: 'string', example: 'ADMINISTRADOR' },
+      currentRole: { type: 'string', example: 'administrador', required: false },
+      organizationId: { type: 'string', example: 'org-uuid-123', required: false },
     },
   })
   user!: {
@@ -39,8 +42,10 @@ export class LoginResponseDto {
     username: string
     email: string
     fullName: string
-    roles: string[]
-    currentRole: string
+    type: string
+    roles?: string[]
+    currentRole?: string
+    organizationId?: string
   }
 
   @ApiProperty({

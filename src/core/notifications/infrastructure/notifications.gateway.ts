@@ -8,8 +8,21 @@ import {
 import { Server, Socket } from 'socket.io'
 import { Injectable, Logger, UnauthorizedException, Inject } from '@nestjs/common'
 import { JwtService } from '@nestjs/jwt'
-import type { IUserRepository } from 'src/core/users/domain/repositories'
-import { USER_REPOSITORY } from 'src/core/users/infrastructure'
+import type {
+  IUserRepository,
+  IInternalProfileRepository,
+  IExternalProfileRepository,
+} from 'src/core/users/domain'
+import {
+  USER_REPOSITORY,
+  INTERNAL_PROFILE_REPOSITORY,
+  EXTERNAL_PROFILE_REPOSITORY,
+} from 'src/core/users/infrastructure/di'
+import {
+  InternalUser,
+  ExternalUser,
+  SystemRole,
+} from 'src/core/users/domain'
 import { NotificationResponseDto } from '../application/dto/notification-response.dto'
 
 @Injectable()
@@ -32,6 +45,10 @@ export class NotificationsGateway
     private readonly jwtService: JwtService,
     @Inject(USER_REPOSITORY)
     private readonly userRepository: IUserRepository,
+    @Inject(INTERNAL_PROFILE_REPOSITORY)
+    private readonly internalProfileRepository: IInternalProfileRepository,
+    @Inject(EXTERNAL_PROFILE_REPOSITORY)
+    private readonly externalProfileRepository: IExternalProfileRepository,
   ) {}
 
   afterInit(server: Server) {
@@ -52,30 +69,54 @@ export class NotificationsGateway
       const payload = this.jwtService.verify(token as string)
       const userId = payload.sub
 
-      // Load user with roles
+      // Load user
       const user = await this.userRepository.findById(userId)
       if (!user || !user.isActive) {
         throw new UnauthorizedException('Invalid user')
       }
 
+      // Load user with profile
+      let fullUser: InternalUser | ExternalUser
+      if (user.isInternal) {
+        const profile = await this.internalProfileRepository.findByUserId(user.id)
+        if (!profile) {
+          throw new UnauthorizedException('Profile not found')
+        }
+        fullUser = InternalUser.create(user, profile)
+      } else {
+        const profile = await this.externalProfileRepository.findByUserId(user.id)
+        if (!profile) {
+          throw new UnauthorizedException('Profile not found')
+        }
+        fullUser = ExternalUser.create(user, profile)
+      }
+
       // Store user in socket data
       client.data.user = user
+      client.data.fullUser = fullUser
 
-      // Join rooms based on roles
-      if (user.isAdmin) {
-        await client.join('admin')
-        this.logger.log(`User ${user.username} joined admin room`)
-      }
+      // Join rooms based on user type and roles
+      if (fullUser instanceof InternalUser) {
+        // INTERNAL users - join rooms based on roles
+        if (fullUser.hasRole(SystemRole.ADMINISTRADOR)) {
+          await client.join('admin')
+          this.logger.log(`User ${fullUser.username} joined admin room`)
+        }
 
-      if (user.isManager || user.isAuditor) {
-        await client.join('manager-auditor')
-        this.logger.log(`User ${user.username} joined manager-auditor room`)
-      }
-
-      if (user.isClient) {
-        const clientRoom = `client-${user.id}`
+        if (
+          fullUser.hasRole(SystemRole.GERENTE) ||
+          fullUser.hasRole(SystemRole.AUDITOR)
+        ) {
+          await client.join('manager-auditor')
+          this.logger.log(
+            `User ${fullUser.username} joined manager-auditor room`,
+          )
+        }
+      } else {
+        // EXTERNAL users - join client room
+        const clientRoom = `client-${fullUser.id}`
         await client.join(clientRoom)
-        this.logger.log(`User ${user.username} joined ${clientRoom} room`)
+        this.logger.log(`User ${fullUser.username} joined ${clientRoom} room`)
       }
 
       // Also join personal room

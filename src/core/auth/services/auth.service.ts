@@ -8,11 +8,25 @@ import { JwtService } from '@nestjs/jwt'
 import { ConfigService } from '@nestjs/config'
 import * as bcrypt from 'bcrypt'
 import * as crypto from 'crypto'
-import type { IUserRepository } from 'src/core/users/domain/repositories'
-import { USER_REPOSITORY } from 'src/core/users/infrastructure'
+import type {
+  IUserRepository,
+  IInternalProfileRepository,
+  IExternalProfileRepository,
+} from 'src/core/users/domain'
+import {
+  USER_REPOSITORY,
+  INTERNAL_PROFILE_REPOSITORY,
+  EXTERNAL_PROFILE_REPOSITORY,
+} from 'src/core/users/infrastructure/di'
 import { SessionRepository } from 'src/core/sessions/infrastructure/session.repository'
 import { OtpRepository } from '../infrastructure/otp.repository'
-import { User } from 'src/core/users/domain/user'
+import {
+  User,
+  InternalUser,
+  ExternalUser,
+  UserType,
+  SystemRole,
+} from 'src/core/users/domain'
 import { Session } from 'src/core/sessions/domain/session.entity'
 import { Otp } from '../domain/otp.entity'
 import {
@@ -36,12 +50,39 @@ export class AuthService {
   constructor(
     @Inject(USER_REPOSITORY)
     private readonly userRepository: IUserRepository,
+    @Inject(INTERNAL_PROFILE_REPOSITORY)
+    private readonly internalProfileRepository: IInternalProfileRepository,
+    @Inject(EXTERNAL_PROFILE_REPOSITORY)
+    private readonly externalProfileRepository: IExternalProfileRepository,
     private readonly sessionRepository: SessionRepository,
     private readonly otpRepository: OtpRepository,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
     private readonly emailService: EmailService,
   ) {}
+
+  /**
+   * Helper para cargar usuario con su perfil correspondiente
+   */
+  private async loadUserWithProfile(
+    user: User,
+  ): Promise<InternalUser | ExternalUser> {
+    if (user.isInternal) {
+      const profile =
+        await this.internalProfileRepository.findByUserId(user.id)
+      if (!profile) {
+        throw new UnauthorizedException('Perfil interno no encontrado')
+      }
+      return InternalUser.create(user, profile)
+    } else {
+      const profile =
+        await this.externalProfileRepository.findByUserId(user.id)
+      if (!profile) {
+        throw new UnauthorizedException('Perfil externo no encontrado')
+      }
+      return ExternalUser.create(user, profile)
+    }
+  }
 
   /**
    * Login con validación de intentos y bloqueo temporal
@@ -51,7 +92,7 @@ export class AuthService {
     password: string,
     ipAddress?: string,
     userAgent?: string,
-    preferredRole?: Role,
+    preferredRole?: SystemRole,
   ): Promise<LoginResponse> {
     // Buscar usuario por username o email
     const user = await this.userRepository.findByUsernameOrEmail(username)
@@ -104,54 +145,109 @@ export class AuthService {
     user.resetLoginAttempts()
     await this.userRepository.save(user)
 
-    // Determinar rol activo para esta sesión
-    let currentRole = preferredRole || user.roles[0]
+    // Cargar usuario con perfil
+    const fullUser = await this.loadUserWithProfile(user)
 
-    // Validar que el rol preferido esté en la lista de roles del usuario
-    if (preferredRole && !user.roles.includes(preferredRole)) {
-      throw new BadRequestException(
-        `El rol ${preferredRole} no está disponible para este usuario`,
+    // Manejar según tipo de usuario
+    if (fullUser instanceof InternalUser) {
+      // Usuario INTERNAL - tiene roles del sistema
+      const currentRole = preferredRole || fullUser.primaryRole
+
+      // Validar que el rol preferido esté disponible
+      if (preferredRole && !fullUser.hasRole(preferredRole)) {
+        throw new BadRequestException(
+          `El rol ${preferredRole} no está disponible para este usuario`,
+        )
+      }
+
+      // Crear sesión
+      const session = Session.create({
+        userId: user.id,
+        refreshToken: '',
+        currentRole: currentRole.toString(),
+        expiresAt: new Date(Date.now() + this.getRefreshTokenExpirationMs()),
+        ipAddress,
+        userAgent,
+      })
+      await this.sessionRepository.save(session)
+
+      // Generar tokens
+      const tokens = await this.generateTokenPairForInternal(
+        fullUser,
+        session.id,
+        currentRole,
       )
-    }
 
-    // Crear sesión con rol activo
-    const session = Session.create({
-      userId: user.id,
-      refreshToken: '', // Se asignará después de generar tokens
-      currentRole,
-      expiresAt: new Date(Date.now() + this.getRefreshTokenExpirationMs()),
-      ipAddress,
-      userAgent,
-    })
-    await this.sessionRepository.save(session)
+      // Actualizar sesión con refreshToken
+      session.updateRefreshToken(
+        tokens.refreshToken,
+        new Date(Date.now() + this.getRefreshTokenExpirationMs()),
+      )
+      await this.sessionRepository.save(session)
 
-    // Generar tokens con sessionId y currentRole
-    const tokens = await this.generateTokenPair(user, session.id, currentRole)
+      // Generar menús y permisos basados en el rol ACTIVO
+      const menus = MenuFilter.getMenusForRole(currentRole as unknown as Role)
+      const permissions = RolePermissionChecker.getPermissionsAsStrings(
+        currentRole as unknown as Role,
+      )
 
-    // Actualizar sesión con refreshToken
-    session.updateRefreshToken(
-      tokens.refreshToken,
-      new Date(Date.now() + this.getRefreshTokenExpirationMs()),
-    )
-    await this.sessionRepository.save(session)
+      return {
+        user: {
+          id: fullUser.id,
+          username: fullUser.username,
+          email: fullUser.email,
+          fullName: fullUser.fullName,
+          type: UserType.INTERNAL,
+          roles: fullUser.roles.map((r) => r.toString()),
+          currentRole: currentRole.toString(),
+        },
+        tokens,
+        menus,
+        permissions,
+      }
+    } else {
+      // Usuario EXTERNAL - cliente organizacional
+      const session = Session.create({
+        userId: user.id,
+        refreshToken: '',
+        currentRole: 'cliente', // Para compatibilidad con Session
+        expiresAt: new Date(Date.now() + this.getRefreshTokenExpirationMs()),
+        ipAddress,
+        userAgent,
+      })
+      await this.sessionRepository.save(session)
 
-    // Generar menús y permisos basados en el rol ACTIVO de la sesión
-    const menus = MenuFilter.getMenusForRole(currentRole)
-    const permissions =
-      RolePermissionChecker.getPermissionsAsStrings(currentRole)
+      // Generar tokens para externo
+      const tokens = await this.generateTokenPairForExternal(
+        fullUser,
+        session.id,
+      )
 
-    return {
-      user: {
-        id: user.id,
-        username: user.username.getValue(),
-        email: user.email.getValue(),
-        fullName: user.fullName,
-        roles: user.roles, // Todos los roles disponibles
-        currentRole, // Rol activo de esta sesión
-      },
-      tokens,
-      menus,
-      permissions,
+      // Actualizar sesión
+      session.updateRefreshToken(
+        tokens.refreshToken,
+        new Date(Date.now() + this.getRefreshTokenExpirationMs()),
+      )
+      await this.sessionRepository.save(session)
+
+      // Menús y permisos para clientes
+      const menus = MenuFilter.getMenusForRole(Role.CLIENTE)
+      const permissions =
+        RolePermissionChecker.getPermissionsAsStrings(Role.CLIENTE)
+
+      return {
+        user: {
+          id: fullUser.id,
+          username: fullUser.username,
+          email: fullUser.email,
+          fullName: fullUser.fullName,
+          type: UserType.EXTERNAL,
+          organizationId: fullUser.organizationId,
+        },
+        tokens,
+        menus,
+        permissions,
+      }
     }
   }
 
@@ -182,12 +278,21 @@ export class AuthService {
         throw new UnauthorizedException('Usuario no autorizado')
       }
 
-      // Generar nuevos tokens con el currentRole de la sesión
-      const tokens = await this.generateTokenPair(
-        user,
-        session.id,
-        session.currentRole,
-      )
+      // Cargar usuario con perfil
+      const fullUser = await this.loadUserWithProfile(user)
+
+      // Generar nuevos tokens según tipo de usuario
+      let tokens: TokenPair
+      if (fullUser instanceof InternalUser) {
+        const currentRole = session.currentRole as SystemRole
+        tokens = await this.generateTokenPairForInternal(
+          fullUser,
+          session.id,
+          currentRole,
+        )
+      } else {
+        tokens = await this.generateTokenPairForExternal(fullUser, session.id)
+      }
 
       // Actualizar la sesión con el nuevo refresh token
       session.updateRefreshToken(
@@ -237,20 +342,55 @@ export class AuthService {
   }
 
   /**
-   * Genera un par de tokens (access y refresh) para una sesión específica
+   * Genera par de tokens para usuario INTERNAL
    */
-  async generateTokenPair(
-    user: User,
+  private async generateTokenPairForInternal(
+    internalUser: InternalUser,
     sessionId: string,
-    currentRole: Role,
+    currentRole: SystemRole,
   ): Promise<TokenPair> {
     const payload: JwtPayload = {
-      sub: user.id,
-      username: user.username.getValue(),
-      email: user.email.getValue(),
-      roles: user.roles, // Todos los roles del usuario
-      currentRole, // Rol activo de la sesión
-      sessionId, // ID de la sesión
+      sub: internalUser.id,
+      username: internalUser.username,
+      email: internalUser.email,
+      type: UserType.INTERNAL,
+      profileId: internalUser.profileId,
+      roles: internalUser.roles.map((r) => r.toString()),
+      currentRole: currentRole.toString(),
+      sessionId,
+    }
+
+    const [accessToken, refreshToken] = await Promise.all([
+      this.jwtService.signAsync(payload, {
+        secret: this.configService.get('JWT_SECRET') || 'default-secret',
+        expiresIn: this.configService.get('JWT_EXPIRATION', '15m'),
+      }),
+      this.jwtService.signAsync(payload, {
+        secret:
+          this.configService.get('JWT_REFRESH_SECRET') ||
+          'default-refresh-secret',
+        expiresIn: this.configService.get('JWT_REFRESH_EXPIRATION', '7d'),
+      }),
+    ])
+
+    return { accessToken, refreshToken }
+  }
+
+  /**
+   * Genera par de tokens para usuario EXTERNAL
+   */
+  private async generateTokenPairForExternal(
+    externalUser: ExternalUser,
+    sessionId: string,
+  ): Promise<TokenPair> {
+    const payload: JwtPayload = {
+      sub: externalUser.id,
+      username: externalUser.username,
+      email: externalUser.email,
+      type: UserType.EXTERNAL,
+      profileId: externalUser.profileId,
+      organizationId: externalUser.organizationId,
+      sessionId,
     }
 
     const [accessToken, refreshToken] = await Promise.all([
@@ -427,9 +567,12 @@ export class AuthService {
   }
 
   /**
-   * Cambia el rol activo de una sesión específica
+   * Cambia el rol activo de una sesión específica (solo INTERNAL)
    */
-  async switchRole(sessionId: string, newRole: Role): Promise<LoginResponse> {
+  async switchRole(
+    sessionId: string,
+    newRole: SystemRole,
+  ): Promise<LoginResponse> {
     // Buscar sesión
     const session = await this.sessionRepository.findByIdOrFail(sessionId)
 
@@ -440,19 +583,35 @@ export class AuthService {
     // Buscar usuario
     const user = await this.userRepository.findByIdOrFail(session.userId)
 
-    // Verificar que el usuario tenga el rol solicitado
-    if (!user.roles.includes(newRole)) {
+    // Verificar que sea usuario INTERNAL
+    if (!user.isInternal) {
       throw new BadRequestException(
-        `El rol ${newRole} no está disponible para este usuario. Roles disponibles: ${user.roles.join(', ')}`,
+        'El cambio de rol solo está disponible para usuarios internos',
+      )
+    }
+
+    // Cargar usuario con perfil
+    const internalUser = (await this.loadUserWithProfile(
+      user,
+    )) as InternalUser
+
+    // Verificar que el usuario tenga el rol solicitado
+    if (!internalUser.hasRole(newRole)) {
+      throw new BadRequestException(
+        `El rol ${newRole} no está disponible para este usuario. Roles disponibles: ${internalUser.roles.join(', ')}`,
       )
     }
 
     // Cambiar rol activo de la sesión
-    session.switchRole(newRole)
+    session.switchRole(newRole.toString())
     await this.sessionRepository.save(session)
 
     // Regenerar tokens con el nuevo rol
-    const tokens = await this.generateTokenPair(user, session.id, newRole)
+    const tokens = await this.generateTokenPairForInternal(
+      internalUser,
+      session.id,
+      newRole,
+    )
 
     // Actualizar refresh token en sesión
     session.updateRefreshToken(
@@ -462,17 +621,20 @@ export class AuthService {
     await this.sessionRepository.save(session)
 
     // Menús y permisos del nuevo rol activo
-    const menus = MenuFilter.getMenusForRole(newRole)
-    const permissions = RolePermissionChecker.getPermissionsAsStrings(newRole)
+    const menus = MenuFilter.getMenusForRole(newRole as unknown as Role)
+    const permissions = RolePermissionChecker.getPermissionsAsStrings(
+      newRole as unknown as Role,
+    )
 
     return {
       user: {
-        id: user.id,
-        username: user.username.getValue(),
-        email: user.email.getValue(),
-        fullName: user.fullName,
-        roles: user.roles,
-        currentRole: newRole,
+        id: internalUser.id,
+        username: internalUser.username,
+        email: internalUser.email,
+        fullName: internalUser.fullName,
+        type: UserType.INTERNAL,
+        roles: internalUser.roles.map((r) => r.toString()),
+        currentRole: newRole.toString(),
       },
       tokens,
       menus,

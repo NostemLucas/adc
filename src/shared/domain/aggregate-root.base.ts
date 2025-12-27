@@ -1,23 +1,6 @@
 import { IEvent } from '@nestjs/cqrs'
 
-/**
- * Clase base para Agregados que emiten eventos de dominio.
- * Implementa el patrón Aggregate Root de DDD.
- *
- * Proporciona:
- * - Campos técnicos comunes (id, timestamps, soft delete)
- * - Gestión de eventos de dominio
- * - Métodos utilitarios para auditoría
- */
 export abstract class AggregateRoot {
-  // ========== CAMPOS TÉCNICOS (Infraestructura) ==========
-  // Estos campos son manejados por la capa de infraestructura
-  // y NO forman parte de la lógica de negocio del dominio
-
-  // Nota: Son protected (no readonly) para permitir asignación en constructores de clases hijas
-  // Pero los getters públicos no tienen setters, manteniendo inmutabilidad desde fuera
-  // El operador ! indica a TypeScript que estos campos serán asignados en el constructor de clases hijas
-
   protected _id!: string
   protected _createdAt!: Date
   protected _updatedAt!: Date

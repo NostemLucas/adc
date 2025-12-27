@@ -2,5 +2,6 @@
  * Persistence layer exports
  */
 
-export * from './user.repository'
-export * from './user.orm-mapper'
+export * from './user'
+export * from './internal-profile'
+export * from './external-profile'

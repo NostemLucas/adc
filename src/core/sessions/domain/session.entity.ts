@@ -1,4 +1,3 @@
-import { Role } from 'src/core/auth/domain/authorization'
 import { AggregateRoot } from '@shared/domain/aggregate-root.base'
 import { SessionCreatedEvent, SessionInvalidatedEvent, SessionRoleSwitchedEvent } from './events'
 
@@ -19,7 +18,7 @@ interface SessionConstructorProps {
   deletedAt?: Date | null
   userId: string
   refreshToken: string
-  currentRole: Role
+  currentRole: string
   expiresAt: Date
   ipAddress?: string | null
   userAgent?: string | null
@@ -31,7 +30,7 @@ interface SessionConstructorProps {
 interface CreateSessionData {
   userId: string
   refreshToken: string
-  currentRole: Role
+  currentRole: string
   expiresAt: Date
   ipAddress?: string
   userAgent?: string
@@ -46,7 +45,7 @@ export class Session extends AggregateRoot {
   // ===== CAMPOS DE NEGOCIO =====
   private _userId: string
   private _refreshToken: string
-  private _currentRole: Role
+  private _currentRole: string
   private _expiresAt: Date
   private _ipAddress: string | null
   private _userAgent: string | null
@@ -84,7 +83,7 @@ export class Session extends AggregateRoot {
     return this._refreshToken
   }
 
-  get currentRole(): Role {
+  get currentRole(): string {
     return this._currentRole
   }
 
@@ -129,7 +128,7 @@ export class Session extends AggregateRoot {
     this.touch()
   }
 
-  switchRole(newRole: Role): void {
+  switchRole(newRole: string): void {
     const previousRole = this._currentRole
     this._currentRole = newRole
     this.touch()
@@ -220,7 +219,7 @@ export class Session extends AggregateRoot {
       deletedAt: data.deletedAt,
       userId: data.userId,
       refreshToken: data.refreshToken,
-      currentRole: data.currentRole as Role,
+      currentRole: data.currentRole,
       expiresAt: data.expiresAt,
       ipAddress: data.ipAddress,
       userAgent: data.userAgent,

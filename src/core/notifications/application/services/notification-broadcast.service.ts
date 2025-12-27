@@ -7,8 +7,15 @@ import {
   Notification,
   NotificationMetadata,
 } from '../../domain/notification.entity'
-import type { IUserRepository } from 'src/core/users/domain/repositories'
-import { USER_REPOSITORY } from 'src/core/users/infrastructure'
+import type {
+  IUserRepository,
+  IInternalProfileRepository,
+} from 'src/core/users/domain'
+import {
+  USER_REPOSITORY,
+  INTERNAL_PROFILE_REPOSITORY,
+} from 'src/core/users/infrastructure/di'
+import { SystemRole } from 'src/core/users/domain'
 
 export interface NotifyAdminsParams {
   title: string
@@ -43,6 +50,8 @@ export class NotificationBroadcastService {
     private readonly notificationsGateway: NotificationsGateway,
     @Inject(USER_REPOSITORY)
     private readonly userRepository: IUserRepository,
+    @Inject(INTERNAL_PROFILE_REPOSITORY)
+    private readonly internalProfileRepository: IInternalProfileRepository,
   ) {}
 
   private toResponseDto(notification: Notification): NotificationResponseDto {
@@ -60,17 +69,21 @@ export class NotificationBroadcastService {
   }
 
   async notifyAdmins(params: NotifyAdminsParams): Promise<void> {
-    // Get all admin users
-    const admins = await this.userRepository.findByRole('administrador')
+    // Get all internal profiles with admin role
+    const allProfiles = await this.internalProfileRepository.findAll()
+    const adminProfiles = allProfiles.filter((p) =>
+      p.roles.includes(SystemRole.ADMINISTRADOR),
+    )
 
     // Create and broadcast notifications to each admin
-    for (const admin of admins) {
+    for (const profile of adminProfiles) {
+      const user = await this.userRepository.findByIdOrFail(profile.userId)
       const notification = await this.createNotificationUseCase.execute(
         {
           type: NotificationType.INFO,
           title: params.title,
           message: params.message,
-          recipientId: admin.id,
+          recipientId: user.id,
           link: params.link,
           metadata: params.metadata,
         },
@@ -85,13 +98,17 @@ export class NotificationBroadcastService {
   async notifyManagersAndAuditors(
     params: NotifyManagersAuditorsParams,
   ): Promise<void> {
-    // Get all manager and auditor users
-    const managers = await this.userRepository.findByRole('gerente')
-    const auditors = await this.userRepository.findByRole('auditor')
-    const users = [...managers, ...auditors]
+    // Get all internal profiles with manager or auditor roles
+    const allProfiles = await this.internalProfileRepository.findAll()
+    const targetProfiles = allProfiles.filter(
+      (p) =>
+        p.roles.includes(SystemRole.GERENTE) ||
+        p.roles.includes(SystemRole.AUDITOR),
+    )
 
     // Create notifications for each user and broadcast
-    for (const user of users) {
+    for (const profile of targetProfiles) {
+      const user = await this.userRepository.findByIdOrFail(profile.userId)
       const notification = await this.createNotificationUseCase.execute(
         {
           type: NotificationType.INFO,

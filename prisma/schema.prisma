@@ -7,9 +7,20 @@ datasource db {
 }
 
 // ===== ENUMS =====
+enum UserType {
+  INTERNAL // Personal del sistema (administrador, gerente, auditor)
+  EXTERNAL // Usuarios de organizaciones (clientes)
+}
+
 enum UserStatus {
   ACTIVE
   INACTIVE
+}
+
+enum SystemRole {
+  ADMINISTRADOR
+  GERENTE
+  AUDITOR
 }
 
 enum OtpType {
@@ -33,32 +44,117 @@ model User {
   updatedAt DateTime  @updatedAt @map("updated_at")
   deletedAt DateTime? @map("deleted_at")
 
-  // User fields
+  // User fields (comunes a todos)
   names               String
-  lastNames           String      @map("last_names")
-  email               String      @unique
+  lastNames           String     @map("last_names")
+  email               String     @unique
   phone               String?
-  username            String      @unique
+  username            String     @unique
   password            String
-  ci                  String      @unique
+  ci                  String     @unique
   image               String?
-  address             String?     @db.Text
-  status              UserStatus  @default(ACTIVE)
-  failedLoginAttempts Int         @default(0) @map("failed_login_attempts")
-  lockUntil           DateTime?   @map("lock_until")
-  roles               String[]    // Array: ['administrador', 'gerente']
+  address             String?    @db.Text
+  status              UserStatus @default(ACTIVE)
+  failedLoginAttempts Int        @default(0) @map("failed_login_attempts")
+  lockUntil           DateTime?  @map("lock_until")
 
-  // Relations
+  // NUEVO: Tipo de usuario (INMUTABLE)
+  type UserType
+
+  // Perfiles especializados (solo uno existirá según el type)
+  internalProfile InternalProfile?
+  externalProfile ExternalProfile?
+
+  // Relations comunes
   sessions              Session[]
   otps                  Otp[]
-  managedAudits         Audit[]        @relation("ManagedAudits")
-  clientAudits          Audit[]        @relation("ClientAudits")
-  auditorAudits         Audit[]        @relation("AuditAuditors")
-  evaluations           Evaluation[]
   receivedNotifications Notification[] @relation("ReceivedNotifications")
   createdNotifications  Notification[] @relation("CreatedNotifications")
 
   @@map("users")
+}
+
+// Perfil para usuarios INTERNOS (staff del sistema)
+model InternalProfile {
+  id        String    @id @default(uuid())
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  // FK a User (1:1)
+  userId String @unique @map("user_id")
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Roles del sistema (solo para INTERNAL)
+  roles String[] // ['administrador', 'gerente', 'auditor']
+
+  // Campos específicos de personal interno
+  department   String? // Ej: "Auditoría", "Gestión"
+  employeeCode String?   @unique @map("employee_code")
+  hireDate     DateTime? @map("hire_date")
+
+  // Relations específicas
+  managedAudits Audit[]      @relation("ManagedAudits")
+  auditorAudits Audit[]      @relation("AuditAuditors")
+  evaluations   Evaluation[]
+
+  @@map("internal_profiles")
+}
+
+// Perfil para usuarios EXTERNOS (clientes organizacionales)
+model ExternalProfile {
+  id        String    @id @default(uuid())
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  // FK a User (1:1)
+  userId String @unique @map("user_id")
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // FK a Organization (OBLIGATORIO)
+  organizationId String       @map("organization_id")
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  // Campos específicos de clientes
+  jobTitle            String?   @map("job_title") // Ej: "Jefe de RRHH"
+  department          String? // Ej: "Recursos Humanos"
+  organizationalEmail String?   @unique @map("organizational_email")
+  isActive            Boolean   @default(true) @map("is_active")
+  joinedAt            DateTime  @default(now()) @map("joined_at")
+  leftAt              DateTime? @map("left_at")
+
+  @@index([organizationId])
+  @@map("external_profiles")
+}
+
+// Organización (empresas clientes)
+model Organization {
+  id        String    @id @default(uuid())
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  // Organization fields
+  name        String  @unique
+  description String? @db.Text
+  address     String? @db.Text
+  phone       String?
+  email       String?
+  logo        String?
+  banner      String?
+  mission     String? @db.Text
+  vision      String? @db.Text
+  values      String? @db.Text
+  website     String?
+  taxId       String? @unique @map("tax_id") // RUC, NIT, etc.
+  isActive    Boolean @default(true) @map("is_active")
+
+  // Relations
+  members ExternalProfile[]
+  audits  Audit[]           @relation("OrganizationAudits")
+
+  @@map("organizations")
 }
 
 // Role model deprecated - roles are now hardcoded in authorization config
@@ -155,13 +251,13 @@ model Otp {
   deletedAt DateTime? @map("deleted_at")
 
   // OTP fields
-  userId    String   @map("user_id")
-  code      String   @db.VarChar(10)
+  userId    String    @map("user_id")
+  code      String    @db.VarChar(10)
   type      OtpType
-  expiresAt DateTime @map("expires_at")
-  isUsed    Boolean  @default(false) @map("is_used")
+  expiresAt DateTime  @map("expires_at")
+  isUsed    Boolean   @default(false) @map("is_used")
   usedAt    DateTime? @map("used_at")
-  attempts  Int      @default(0)
+  attempts  Int       @default(0)
 
   // Relations
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -178,13 +274,17 @@ model Audit {
   // Audit fields
   title       String
   description String? @db.Text
-  managerId   String  @map("manager_id")
-  clientId    String  @map("client_id")
 
-  // Relations
-  manager  User   @relation("ManagedAudits", fields: [managerId], references: [id])
-  client   User   @relation("ClientAudits", fields: [clientId], references: [id])
-  auditors User[] @relation("AuditAuditors")
+  // Manager debe ser INTERNAL
+  managerId String          @map("manager_id")
+  manager   InternalProfile @relation("ManagedAudits", fields: [managerId], references: [id])
+
+  // Auditors deben ser INTERNAL
+  auditors InternalProfile[] @relation("AuditAuditors")
+
+  // Organization (EXTERNAL)
+  organizationId String       @map("organization_id")
+  organization   Organization @relation("OrganizationAudits", fields: [organizationId], references: [id])
 
   @@map("audits")
 }
@@ -198,10 +298,10 @@ model Evaluation {
   // Evaluation fields
   title       String
   description String? @db.Text
-  userId      String  @map("user_id")
 
-  // Relations
-  user User @relation(fields: [userId], references: [id])
+  // InternalProfile que realiza la evaluación
+  internalProfileId String          @map("internal_profile_id")
+  internalProfile   InternalProfile @relation(fields: [internalProfileId], references: [id])
 
   @@map("evaluations")
 }

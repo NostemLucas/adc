@@ -18,10 +18,10 @@ import {
   ApiParam,
 } from '@nestjs/swagger'
 import { CommandBus, QueryBus } from '@nestjs/cqrs'
-import { CreateUserDto } from './application/commands/create-user/create-user.dto'
-import { UpdateUserDto } from './application/commands/update-user/update-user.dto'
-import { UserResponseDto } from './application/queries/get-user/user-response.dto'
-import { UploadAvatarResponseDto } from './application/commands/upload-avatar/upload-avatar.dto'
+import { CreateUserDto } from './application/internal-profile/commands/create-internal-user/create-user.dto'
+import { UpdateUserDto } from './application/user/commands/update-user/update-user.dto'
+import { UserResponseDto } from './application/user/queries/get-user/user-response.dto'
+import { UploadAvatarResponseDto } from './application/user/commands/upload-avatar/upload-avatar.dto'
 import { Roles } from '../auth/decorators/roles.decorator'
 import { Role } from '../auth/domain/authorization'
 import { UploadAvatar } from '@shared/file-upload'
@@ -29,14 +29,16 @@ import { User } from './domain/user'
 
 // Commands
 import {
-  CreateUserCommand,
   UpdateUserCommand,
   DeleteUserCommand,
   UploadAvatarCommand,
-} from './application/commands'
+} from './application/user'
+
+// Internal Profile Commands
+import { CreateUserCommand } from './application/internal-profile'
 
 // Queries
-import { GetUserQuery, ListUsersQuery } from './application/queries'
+import { GetUserQuery, ListUsersQuery } from './application/user'
 
 @ApiTags('Usuarios')
 @ApiBearerAuth('JWT-auth')
@@ -72,7 +74,7 @@ export class UsersController {
       address: user.address?.getValue(),
       image: user.image?.getValue(),
       status: user.status,
-      roles: user.roles,
+      type: user.type,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
     }
@@ -102,7 +104,7 @@ export class UsersController {
       address: user.address?.getValue(),
       image: user.image?.getValue(),
       status: user.status,
-      roles: user.roles,
+      type: user.type,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
     }))
@@ -134,7 +136,7 @@ export class UsersController {
       address: user.address?.getValue(),
       image: user.image?.getValue(),
       status: user.status,
-      roles: user.roles,
+      type: user.type,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
     }
@@ -169,7 +171,7 @@ export class UsersController {
       address: user.address?.getValue(),
       image: user.image?.getValue(),
       status: user.status,
-      roles: user.roles,
+      type: user.type,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
     }

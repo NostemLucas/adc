@@ -32,7 +32,7 @@ import { Public } from './decorators/public.decorator'
 import { CurrentUser } from './decorators/current-user.decorator'
 import { SessionId } from './decorators/session-id.decorator'
 import { CurrentRole } from './decorators/current-role.decorator'
-import { User } from '../users/domain/user'
+import { User, SystemRole } from '../users/domain'
 import { Role } from './domain/authorization'
 import { BadRequestException } from '@nestjs/common'
 import type { Request } from 'express'
@@ -156,14 +156,32 @@ export class AuthController {
   async getProfile(
     @CurrentUser() user: User,
     @CurrentRole() currentRole: string,
+    @Req() req: Request & { user?: any },
   ) {
-    return {
+    // La información completa está en el JWT payload (req.user)
+    const jwtPayload = req.user
+
+    const baseProfile = {
       id: user.id,
       username: user.username,
       email: user.email,
       fullName: user.fullName,
-      roles: user.roles,
-      currentRole,
+      type: user.type,
+    }
+
+    // Usuarios INTERNAL tienen roles
+    if (user.isInternal) {
+      return {
+        ...baseProfile,
+        roles: jwtPayload?.roles || [],
+        currentRole: currentRole || jwtPayload?.currentRole,
+      }
+    }
+
+    // Usuarios EXTERNAL tienen organizationId
+    return {
+      ...baseProfile,
+      organizationId: jwtPayload?.organizationId,
     }
   }
 
@@ -171,8 +189,9 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @ApiBearerAuth('JWT-auth')
   @ApiOperation({
-    summary: 'Cambiar rol activo',
-    description: 'Permite al usuario cambiar entre sus roles disponibles',
+    summary: 'Cambiar rol activo (solo usuarios INTERNAL)',
+    description:
+      'Permite a usuarios internos cambiar entre sus roles disponibles',
   })
   @ApiBody({
     schema: {
@@ -180,7 +199,7 @@ export class AuthController {
       properties: {
         role: {
           type: 'string',
-          enum: ['administrador', 'gerente', 'auditor', 'cliente'],
+          enum: ['administrador', 'gerente', 'auditor'],
           description: 'Nuevo rol activo',
         },
       },
@@ -197,12 +216,14 @@ export class AuthController {
     @SessionId() sessionId: string,
     @Body() dto: { role: string },
   ): Promise<LoginResponseDto> {
-    // Validar que el rol sea válido
-    if (!Object.values(Role).includes(dto.role as Role)) {
-      throw new BadRequestException('Rol inválido')
+    // Validar que el rol sea válido (SystemRole, no Role)
+    if (!Object.values(SystemRole).includes(dto.role as SystemRole)) {
+      throw new BadRequestException(
+        'Rol inválido. Roles válidos: administrador, gerente, auditor',
+      )
     }
 
-    return this.authService.switchRole(sessionId, dto.role as Role)
+    return this.authService.switchRole(sessionId, dto.role as SystemRole)
   }
 
   @Public()

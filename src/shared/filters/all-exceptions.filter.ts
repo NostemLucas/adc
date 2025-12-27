@@ -7,7 +7,7 @@ import {
 } from '@nestjs/common'
 import { Request, Response } from 'express'
 import { LoggerService } from '../logger/logger.service'
-import { DomainException } from 'src/core/users/domain/exceptions/domain.exception'
+import { DomainException } from 'src/core/users/domain/shared/exceptions/domain.exception'
 import {
   InvalidEmailFormatException,
   InvalidCiFormatException,
@@ -21,7 +21,7 @@ import {
   DuplicateUsernameException,
   DuplicateCiException,
   InvalidUserDataException,
-} from 'src/core/users/domain/exceptions/user.exceptions'
+} from 'src/core/users/domain/user/exceptions/user.exceptions'
 
 interface RequestWithUser extends Request {
   user?: {

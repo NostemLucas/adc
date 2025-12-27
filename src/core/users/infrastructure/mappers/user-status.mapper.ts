@@ -1,5 +1,5 @@
 import { UserStatus as PrismaUserStatus } from '@prisma/client'
-import { UserStatus as DomainUserStatus } from '../../domain/constants'
+import { UserStatus as DomainUserStatus } from '../../domain/shared/constants'
 
 /**
  * Mapper para convertir entre UserStatus de Prisma y UserStatus del dominio.

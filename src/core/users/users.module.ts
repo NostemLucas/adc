@@ -1,26 +1,37 @@
 import { Module } from '@nestjs/common'
 import { CqrsModule } from '@nestjs/cqrs'
 import { UsersController } from './users.controller'
-import { UserRepository, USER_REPOSITORY } from './infrastructure'
-import { UserUniquenessValidator } from './domain/services'
-
-// Commands
 import {
-  CreateUserHandler,
+  UserRepository,
+  InternalProfileRepository,
+  ExternalProfileRepository,
+} from './infrastructure/persistence'
+import {
+  USER_REPOSITORY,
+  INTERNAL_PROFILE_REPOSITORY,
+  EXTERNAL_PROFILE_REPOSITORY,
+} from './infrastructure/di'
+import { UserUniquenessValidator } from './domain/shared/services'
+
+// User Commands
+import {
   UpdateUserHandler,
   DeleteUserHandler,
   UploadAvatarHandler,
-} from './application/commands'
+} from './application/user'
+
+// Internal Profile Commands
+import { CreateUserHandler } from './application/internal-profile'
 
 // Queries
-import { GetUserHandler, ListUsersHandler } from './application/queries'
+import { GetUserHandler, ListUsersHandler } from './application/user'
 
 // Event Handlers
 import {
   UserCreatedHandler,
   UserUpdatedHandler,
   UserDeletedHandler,
-} from './application/event-handlers'
+} from './application/user'
 
 const CommandHandlers = [
   CreateUserHandler,
@@ -41,10 +52,18 @@ const EventHandlers = [
   imports: [CqrsModule],
   controllers: [UsersController],
   providers: [
-    // Infrastructure - Repository with DI token
+    // Infrastructure - Repositories with DI tokens
     {
       provide: USER_REPOSITORY,
       useClass: UserRepository,
+    },
+    {
+      provide: INTERNAL_PROFILE_REPOSITORY,
+      useClass: InternalProfileRepository,
+    },
+    {
+      provide: EXTERNAL_PROFILE_REPOSITORY,
+      useClass: ExternalProfileRepository,
     },
 
     // Domain Services (injected manually since they're framework-agnostic)
@@ -60,6 +79,10 @@ const EventHandlers = [
     ...QueryHandlers,
     ...EventHandlers,
   ],
-  exports: [USER_REPOSITORY],
+  exports: [
+    USER_REPOSITORY,
+    INTERNAL_PROFILE_REPOSITORY,
+    EXTERNAL_PROFILE_REPOSITORY,
+  ],
 })
 export class UsersModule {}
