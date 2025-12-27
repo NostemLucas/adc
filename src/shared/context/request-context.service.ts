@@ -50,7 +50,10 @@ export class RequestContext {
    * @param fn Función a ejecutar dentro del contexto
    * @returns El resultado de la función ejecutada
    */
-  run<T>(context: RequestContextData, fn: () => T | Promise<T>): T | Promise<T> {
+  run<T>(
+    context: RequestContextData,
+    fn: () => T | Promise<T>,
+  ): T | Promise<T> {
     return this.asyncLocalStorage.run(context, fn)
   }
 

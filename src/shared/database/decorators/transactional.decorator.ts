@@ -1,6 +1,11 @@
 import { TransactionContext } from '../transaction-context.service'
 
 /**
+ * Tipo para métodos asíncronos
+ */
+type AsyncMethod = (...args: never[]) => Promise<unknown>
+
+/**
  * Decorador que ejecuta un método dentro de una transacción Prisma.
  *
  * El método decorado debe pertenecer a una clase que tenga una instancia
@@ -30,37 +35,43 @@ import { TransactionContext } from '../transaction-context.service'
  */
 export function Transactional() {
   return function (
-    target: unknown,
-    propertyKey: string,
+    target: object,
+    propertyKey: string | symbol,
     descriptor: PropertyDescriptor,
-  ) {
-    const originalMethod = descriptor.value
+  ): PropertyDescriptor | void {
+    const originalMethod = descriptor.value as AsyncMethod
 
-    descriptor.value = async function (...args: unknown[]) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const instance = this as any
+    if (typeof originalMethod !== 'function') {
+      throw new Error(
+        `@Transactional can only be applied to methods, not properties`,
+      )
+    }
 
-      if (!instance.transactionContext) {
-        const className =
-          typeof target === 'object' && target !== null && 'constructor' in target
-            ? (target.constructor as { name: string }).name
-            : 'Unknown'
+    descriptor.value = async function (
+      this: {
+        transactionContext?: TransactionContext
+        constructor: { name: string }
+      },
+      ...args: never[]
+    ): Promise<unknown> {
+      if (!this.transactionContext) {
+        const className = this.constructor?.name || 'Unknown'
         throw new Error(
           `@Transactional decorator requires a 'transactionContext' property on the class. ` +
             `Make sure to inject TransactionContext in ${className}.`,
         )
       }
 
-      const transactionContext = instance.transactionContext as TransactionContext
+      const transactionContext = this.transactionContext
 
       // Si ya estamos en una transacción, simplemente ejecuta el método
       if (transactionContext.isInTransaction()) {
-        return originalMethod.apply(this, args)
+        return originalMethod.apply(this, args) as Promise<unknown>
       }
 
       // Si no, crea una nueva transacción
       return transactionContext.runInTransaction(async () => {
-        return originalMethod.apply(this, args)
+        return originalMethod.apply(this, args) as Promise<unknown>
       })
     }
 

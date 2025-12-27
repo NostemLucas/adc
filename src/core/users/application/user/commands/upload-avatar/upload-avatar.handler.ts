@@ -10,9 +10,7 @@ import { UploadAvatarCommand } from './upload-avatar.command'
  * Responsable de subir/actualizar el avatar de un usuario.
  */
 @CommandHandler(UploadAvatarCommand)
-export class UploadAvatarHandler
-  implements ICommandHandler<UploadAvatarCommand>
-{
+export class UploadAvatarHandler implements ICommandHandler<UploadAvatarCommand> {
   constructor(
     @Inject(USER_REPOSITORY)
     private readonly userRepository: IUserRepository,
