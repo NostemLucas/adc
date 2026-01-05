@@ -9,20 +9,15 @@
 
 import { User as PrismaUser } from '@prisma/client'
 import { User } from '../../../domain/user'
-import { UserType } from '../../../domain/shared/constants'
 import { UserStatusMapper } from '../../mappers/user-status.mapper'
 
 export class UserOrmMapper {
   static toDomain(prismaUser: PrismaUser): User {
-    // Convertir de Prisma enum (INTERNAL/EXTERNAL) a domain enum (internal/external)
-    const userType = prismaUser.type === 'INTERNAL' ? UserType.INTERNAL : UserType.EXTERNAL
-
     return User.fromPersistence({
       id: prismaUser.id,
       createdAt: prismaUser.createdAt,
       updatedAt: prismaUser.updatedAt,
       deletedAt: prismaUser.deletedAt,
-      type: userType,
       names: prismaUser.names,
       lastNames: prismaUser.lastNames,
       email: prismaUser.email,
@@ -39,11 +34,7 @@ export class UserOrmMapper {
   }
 
   static toPrismaData(user: User) {
-    // Convertir de domain enum (internal/external) a Prisma enum (INTERNAL/EXTERNAL)
-    const prismaType = user.type === UserType.INTERNAL ? 'INTERNAL' : 'EXTERNAL'
-
     return {
-      type: prismaType as 'INTERNAL' | 'EXTERNAL',
       names: user.names.getValue(),
       lastNames: user.lastNames.getValue(),
       email: user.email.getValue(),

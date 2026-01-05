@@ -1,5 +1,9 @@
 import { AggregateRoot } from '@shared/domain/aggregate-root.base'
-import { SessionCreatedEvent, SessionInvalidatedEvent, SessionRoleSwitchedEvent } from './events'
+import {
+  SessionCreatedEvent,
+  SessionInvalidatedEvent,
+  SessionRoleSwitchedEvent,
+} from './events'
 
 /**
  * Session Domain Entity - Representa una sesión de usuario activa
@@ -132,12 +136,14 @@ export class Session extends AggregateRoot {
     const previousRole = this._currentRole
     this._currentRole = newRole
     this.touch()
-    this.addDomainEvent(new SessionRoleSwitchedEvent(
-      this._id,
-      this._userId,
-      previousRole,
-      newRole,
-    ))
+    this.addDomainEvent(
+      new SessionRoleSwitchedEvent(
+        this._id,
+        this._userId,
+        previousRole,
+        newRole,
+      ),
+    )
   }
 
   updateRefreshToken(newToken: string, newExpiresAt: Date): void {
@@ -188,11 +194,13 @@ export class Session extends AggregateRoot {
     })
 
     // Emitir evento de creación
-    session.addDomainEvent(new SessionCreatedEvent(
-      session._id,
-      session._userId,
-      session._currentRole,
-    ))
+    session.addDomainEvent(
+      new SessionCreatedEvent(
+        session._id,
+        session._userId,
+        session._currentRole,
+      ),
+    )
 
     return session
   }

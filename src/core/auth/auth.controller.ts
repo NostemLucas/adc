@@ -32,9 +32,9 @@ import { Public } from './decorators/public.decorator'
 import { CurrentUser } from './decorators/current-user.decorator'
 import { SessionId } from './decorators/session-id.decorator'
 import { CurrentRole } from './decorators/current-role.decorator'
-import { User, SystemRole } from '../users/domain'
-import { Role } from './domain/authorization'
+import { SystemRole } from '../users/domain'
 import { BadRequestException } from '@nestjs/common'
+import type { JwtPayload } from './interfaces/jwt-payload.interface'
 import type { Request } from 'express'
 
 @ApiTags('Autenticación')
@@ -114,10 +114,10 @@ export class AuthController {
   })
   @ApiUnauthorizedResponse()
   async logout(
-    @CurrentUser() user: User,
+    @CurrentUser() user: JwtPayload,
     @Body() refreshTokenDto: RefreshTokenDto,
   ) {
-    await this.authService.logout(user.id, refreshTokenDto.refreshToken)
+    await this.authService.logout(user.sub, refreshTokenDto.refreshToken)
     return { message: 'Sesión cerrada exitosamente' }
   }
 
@@ -135,8 +135,8 @@ export class AuthController {
     type: MessageResponseDto,
   })
   @ApiUnauthorizedResponse()
-  async logoutAll(@CurrentUser() user: User) {
-    await this.authService.logoutAll(user.id)
+  async logoutAll(@CurrentUser() user: JwtPayload) {
+    await this.authService.logoutAll(user.sub)
     return { message: 'Todas las sesiones han sido cerradas' }
   }
 
@@ -153,35 +153,27 @@ export class AuthController {
     type: UserProfileResponseDto,
   })
   @ApiUnauthorizedResponse()
-  async getProfile(
-    @CurrentUser() user: User,
-    @CurrentRole() currentRole: string,
-    @Req() req: Request & { user?: any },
-  ) {
-    // La información completa está en el JWT payload (req.user)
-    const jwtPayload = req.user
-
+  async getProfile(@CurrentUser() user: JwtPayload) {
     const baseProfile = {
-      id: user.id,
+      id: user.sub,
       username: user.username,
       email: user.email,
       fullName: user.fullName,
-      type: user.type,
     }
 
-    // Usuarios INTERNAL tienen roles
-    if (user.isInternal) {
+    // Usuarios INTERNAL tienen roles en el JWT payload
+    if (user.roles && user.roles.length > 0) {
       return {
         ...baseProfile,
-        roles: jwtPayload?.roles || [],
-        currentRole: currentRole || jwtPayload?.currentRole,
+        roles: user.roles,
+        currentRole: user.currentRole,
       }
     }
 
     // Usuarios EXTERNAL tienen organizationId
     return {
       ...baseProfile,
-      organizationId: jwtPayload?.organizationId,
+      organizationId: user.organizationId,
     }
   }
 

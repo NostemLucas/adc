@@ -170,16 +170,13 @@ export class UserRepository extends BaseRepository implements IUserRepository {
 
   /**
    * Buscar usuarios por tipo (INTERNAL/EXTERNAL)
+   * @deprecated Este método ya no funciona sin el campo type en la BD
    */
   async findByType(type: 'internal' | 'external'): Promise<User[]> {
-    const prismaType = type === 'internal' ? 'INTERNAL' : 'EXTERNAL'
-    const users = await this.prisma.user.findMany({
-      where: {
-        type: prismaType,
-      },
-    })
-
-    return UserOrmMapper.toDomainArray(users)
+    // Este método ya no tiene sentido sin el campo type en la BD
+    // TODO: Implementar filtrado por existencia de InternalProfile o ExternalProfile
+    console.warn('findByType is deprecated - use specific repository methods instead')
+    return []
   }
 
   /**

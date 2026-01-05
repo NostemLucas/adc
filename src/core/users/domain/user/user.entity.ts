@@ -1,4 +1,4 @@
-import { UserStatus, UserType } from '../shared/constants'
+import { UserStatus } from '../shared/constants'
 import { LoginPolicy } from '../shared/policies/login-policy'
 import {
   Email,
@@ -10,7 +10,7 @@ import {
   ImageUrl,
   HashedPassword,
 } from '../shared/value-objects'
-import { EmptyFieldException, ImmutableUserTypeException } from './exceptions'
+import { EmptyFieldException } from './exceptions'
 import { AggregateRoot } from '@shared/domain/aggregate-root.base'
 import { UserCreatedEvent, UserUpdatedEvent, UserDeletedEvent } from './events'
 import crypto from 'crypto'
@@ -20,7 +20,6 @@ interface UserConstructorProps {
   id: string
   createdAt: Date
   updatedAt: Date
-  type: UserType
   names: PersonName
   lastNames: PersonName
   email: Email
@@ -38,7 +37,6 @@ interface UserConstructorProps {
 
 // ===== TIPOS PARA FACTORY METHODS =====
 interface CreateUserData {
-  type: UserType // OBLIGATORIO
   names: string
   lastNames: string
   email: string
@@ -51,9 +49,6 @@ interface CreateUserData {
 }
 
 export class User extends AggregateRoot {
-  // CAMPO INMUTABLE
-  private readonly _type: UserType
-
   private _names: PersonName
   private _lastNames: PersonName
   private _email: Email
@@ -74,9 +69,6 @@ export class User extends AggregateRoot {
     this._updatedAt = props.updatedAt
     this._deletedAt = props.deletedAt ?? null
 
-    // INMUTABLE: Se asigna una sola vez
-    this._type = props.type
-
     this._names = props.names
     this._lastNames = props.lastNames
     this._email = props.email
@@ -92,10 +84,6 @@ export class User extends AggregateRoot {
   }
 
   // ===== GETTERS =====
-
-  get type(): UserType {
-    return this._type
-  }
 
   get names(): PersonName {
     return this._names
@@ -163,14 +151,6 @@ export class User extends AggregateRoot {
     return !!(this._lockUntil && this._lockUntil > new Date())
   }
 
-  get isInternal(): boolean {
-    return this._type === UserType.INTERNAL
-  }
-
-  get isExternal(): boolean {
-    return this._type === UserType.EXTERNAL
-  }
-
   // ===== MÉTODOS DE COMPORTAMIENTO =====
 
   activate(): void {
@@ -216,11 +196,6 @@ export class User extends AggregateRoot {
     if (!this.isActive) return false
     if (this.isLocked) return false
     return true
-  }
-
-  // PROHIBIR CAMBIO DE TIPO (Inmutabilidad)
-  changeType(newType: UserType): never {
-    throw new ImmutableUserTypeException()
   }
 
   update(data: {
@@ -289,7 +264,6 @@ export class User extends AggregateRoot {
       id: crypto.randomUUID(),
       createdAt: now,
       updatedAt: now,
-      type: data.type, // INMUTABLE desde el inicio
       names: PersonName.create(data.names, 'nombres'),
       lastNames: PersonName.create(data.lastNames, 'apellidos'),
       email: Email.create(data.email),
@@ -312,7 +286,6 @@ export class User extends AggregateRoot {
     createdAt: Date
     updatedAt: Date
     deletedAt?: Date | null
-    type: UserType
     names: string
     lastNames: string
     email: string
@@ -330,7 +303,6 @@ export class User extends AggregateRoot {
       id: data.id,
       createdAt: data.createdAt,
       updatedAt: data.updatedAt,
-      type: data.type,
       names: PersonName.create(data.names, 'nombres'),
       lastNames: PersonName.create(data.lastNames, 'apellidos'),
       email: Email.create(data.email),
@@ -356,7 +328,6 @@ export class User extends AggregateRoot {
         this._email.getValue(),
         this._username.getValue(),
         this.fullName,
-        this._type,
         this._createdAt,
       ),
     )
@@ -379,7 +350,6 @@ export class User extends AggregateRoot {
   // ===== VALIDACIONES PRIVADAS =====
 
   private static validateRequiredFields(data: {
-    type: UserType
     names: string
     lastNames: string
     email: string
@@ -389,10 +359,6 @@ export class User extends AggregateRoot {
   }): void {
     if (!data.password) {
       throw new EmptyFieldException('contraseña')
-    }
-
-    if (!data.type) {
-      throw new EmptyFieldException('tipo de usuario')
     }
   }
 }

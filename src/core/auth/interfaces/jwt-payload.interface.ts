@@ -1,18 +1,17 @@
 import type { MenuItem } from '../domain/authorization'
-import type { UserType } from 'src/core/users/domain'
 
 export interface JwtPayload {
   sub: string // User ID
   username: string
   email: string
-  type: UserType // INTERNAL o EXTERNAL
+  fullName: string // Full name of the user
   profileId: string // ID del InternalProfile o ExternalProfile
 
-  // Para usuarios INTERNAL
+  // Para usuarios INTERNAL (si tiene roles, es interno)
   roles?: string[] // All system roles (solo INTERNAL)
   currentRole?: string // Active role for this session (solo INTERNAL)
 
-  // Para usuarios EXTERNAL
+  // Para usuarios EXTERNAL (si tiene organizationId, es externo)
   organizationId?: string // ID de la organización (solo EXTERNAL)
 
   sessionId: string // Session ID
@@ -31,13 +30,12 @@ export interface LoginResponse {
     username: string
     email: string
     fullName: string
-    type: UserType
 
-    // Para INTERNAL
+    // Para INTERNAL (si tiene roles, es interno)
     roles?: string[]
     currentRole?: string
 
-    // Para EXTERNAL
+    // Para EXTERNAL (si tiene organizationId, es externo)
     organizationId?: string
   }
   tokens: TokenPair

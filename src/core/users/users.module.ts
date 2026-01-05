@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common'
 import { CqrsModule } from '@nestjs/cqrs'
-import { UsersController } from './users.controller'
+import { InternalUsersController } from './internal-users.controller'
+import { ExternalProfilesController } from './external-profiles.controller'
 import {
   UserRepository,
   InternalProfileRepository,
@@ -13,18 +14,26 @@ import {
 } from './infrastructure/di'
 import { UserUniquenessValidator } from './domain/shared/services'
 
-// User Commands
+// Internal User Commands & Queries
 import {
-  UpdateUserHandler,
-  DeleteUserHandler,
-  UploadAvatarHandler,
-} from './application/user'
+  CreateInternalUserHandler,
+  UpdateInternalUserHandler,
+  DeleteInternalUserHandler,
+  GetInternalUserHandler,
+  ListInternalUsersHandler,
+} from './application/internal-user'
 
-// Internal Profile Commands
-import { CreateUserHandler } from './application/internal-profile'
+// External Profile Commands & Queries
+import {
+  CreateExternalProfileHandler,
+  UpdateExternalProfileHandler,
+  DeleteExternalProfileHandler,
+  GetExternalProfileHandler,
+  ListExternalProfilesHandler,
+} from './application/external-profile'
 
-// Queries
-import { GetUserHandler, ListUsersHandler } from './application/user'
+// Shared User Commands (upload avatar, etc.)
+import { UploadAvatarHandler } from './application/user'
 
 // Event Handlers
 import {
@@ -33,14 +42,23 @@ import {
   UserDeletedHandler,
 } from './application/user'
 
-const CommandHandlers = [
-  CreateUserHandler,
-  UpdateUserHandler,
-  DeleteUserHandler,
-  UploadAvatarHandler,
+const InternalUserHandlers = [
+  CreateInternalUserHandler,
+  UpdateInternalUserHandler,
+  DeleteInternalUserHandler,
+  GetInternalUserHandler,
+  ListInternalUsersHandler,
 ]
 
-const QueryHandlers = [GetUserHandler, ListUsersHandler]
+const ExternalProfileHandlers = [
+  CreateExternalProfileHandler,
+  UpdateExternalProfileHandler,
+  DeleteExternalProfileHandler,
+  GetExternalProfileHandler,
+  ListExternalProfilesHandler,
+]
+
+const SharedCommandHandlers = [UploadAvatarHandler]
 
 const EventHandlers = [
   UserCreatedHandler,
@@ -50,7 +68,7 @@ const EventHandlers = [
 
 @Module({
   imports: [CqrsModule],
-  controllers: [UsersController],
+  controllers: [InternalUsersController, ExternalProfilesController],
   providers: [
     // Infrastructure - Repositories with DI tokens
     {
@@ -75,8 +93,9 @@ const EventHandlers = [
     },
 
     // CQRS Handlers
-    ...CommandHandlers,
-    ...QueryHandlers,
+    ...InternalUserHandlers,
+    ...ExternalProfileHandlers,
+    ...SharedCommandHandlers,
     ...EventHandlers,
   ],
   exports: [

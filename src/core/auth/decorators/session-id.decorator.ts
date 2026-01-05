@@ -1,32 +1,30 @@
-import { createParamDecorator, ExecutionContext, UnauthorizedException } from '@nestjs/common'
-import { JwtService } from '@nestjs/jwt'
+import { createParamDecorator, ExecutionContext } from '@nestjs/common'
+import { JwtPayload } from '../interfaces/jwt-payload.interface'
 
 /**
- * Extrae el sessionId del JWT token
+ * SessionId Decorator
+ *
+ * Extracts the sessionId from the authenticated user's JWT payload.
+ * Every authenticated user (internal or external) has a sessionId.
+ *
+ * @example
+ * ```typescript
+ * @Put('switch-role')
+ * async switchRole(
+ *   @SessionId() sessionId: string,
+ *   @Body() dto: SwitchRoleDto
+ * ) {
+ *   return this.authService.switchRole(sessionId, dto.newRole)
+ * }
+ * ```
+ *
+ * @returns The session ID from the JWT payload
  */
 export const SessionId = createParamDecorator(
   (data: unknown, ctx: ExecutionContext): string => {
     const request = ctx.switchToHttp().getRequest()
-    const authHeader = request.headers.authorization
+    const user = request.user as JwtPayload
 
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      throw new UnauthorizedException('Token no encontrado')
-    }
-
-    const token = authHeader.substring(7)
-    const jwtService = new JwtService()
-
-    try {
-      // Decodificar sin verificar (ya fue verificado por el guard)
-      const payload = jwtService.decode(token) as any
-
-      if (!payload || !payload.sessionId) {
-        throw new UnauthorizedException('SessionId no encontrado en el token')
-      }
-
-      return payload.sessionId
-    } catch (error) {
-      throw new UnauthorizedException('Token inválido')
-    }
+    return user?.sessionId
   },
 )

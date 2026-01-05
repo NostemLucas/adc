@@ -24,7 +24,6 @@ export class UserCreatedHandler implements IEventHandler<UserCreatedEvent> {
     // EJEMPLO 1: Registrar en logs de auditoría
     this.logger.log(`  - ID: ${event.userId}`)
     this.logger.log(`  - Username: ${event.username}`)
-    this.logger.log(`  - Type: ${event.type}`)
     this.logger.log(`  - Fecha creación: ${event.createdAt.toISOString()}`)
 
     // EJEMPLO 2: Aquí podrías enviar un email de bienvenida

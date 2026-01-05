@@ -24,7 +24,6 @@ import {
   User,
   InternalUser,
   ExternalUser,
-  UserType,
   SystemRole,
 } from 'src/core/users/domain'
 import { Session } from 'src/core/sessions/domain/session.entity'
@@ -63,25 +62,29 @@ export class AuthService {
 
   /**
    * Helper para cargar usuario con su perfil correspondiente
+   * Intenta cargar InternalProfile primero, si no existe intenta ExternalProfile
    */
   private async loadUserWithProfile(
     user: User,
   ): Promise<InternalUser | ExternalUser> {
-    if (user.isInternal) {
-      const profile =
-        await this.internalProfileRepository.findByUserId(user.id)
-      if (!profile) {
-        throw new UnauthorizedException('Perfil interno no encontrado')
-      }
-      return InternalUser.create(user, profile)
-    } else {
-      const profile =
-        await this.externalProfileRepository.findByUserId(user.id)
-      if (!profile) {
-        throw new UnauthorizedException('Perfil externo no encontrado')
-      }
-      return ExternalUser.create(user, profile)
+    // Intentar cargar perfil interno primero
+    const internalProfile =
+      await this.internalProfileRepository.findByUserId(user.id)
+    if (internalProfile) {
+      return InternalUser.create(user, internalProfile)
     }
+
+    // Si no es interno, debe ser externo
+    const externalProfile =
+      await this.externalProfileRepository.findByUserId(user.id)
+    if (externalProfile) {
+      return ExternalUser.create(user, externalProfile)
+    }
+
+    // Si no tiene ningún perfil, es un error
+    throw new UnauthorizedException(
+      'Usuario no tiene perfil asociado (ni interno ni externo)',
+    )
   }
 
   /**
@@ -197,7 +200,6 @@ export class AuthService {
           username: fullUser.username,
           email: fullUser.email,
           fullName: fullUser.fullName,
-          type: UserType.INTERNAL,
           roles: fullUser.roles.map((r) => r.toString()),
           currentRole: currentRole.toString(),
         },
@@ -241,7 +243,6 @@ export class AuthService {
           username: fullUser.username,
           email: fullUser.email,
           fullName: fullUser.fullName,
-          type: UserType.EXTERNAL,
           organizationId: fullUser.organizationId,
         },
         tokens,
@@ -353,7 +354,7 @@ export class AuthService {
       sub: internalUser.id,
       username: internalUser.username,
       email: internalUser.email,
-      type: UserType.INTERNAL,
+      fullName: internalUser.fullName,
       profileId: internalUser.profileId,
       roles: internalUser.roles.map((r) => r.toString()),
       currentRole: currentRole.toString(),
@@ -387,7 +388,7 @@ export class AuthService {
       sub: externalUser.id,
       username: externalUser.username,
       email: externalUser.email,
-      type: UserType.EXTERNAL,
+      fullName: externalUser.fullName,
       profileId: externalUser.profileId,
       organizationId: externalUser.organizationId,
       sessionId,
@@ -583,8 +584,10 @@ export class AuthService {
     // Buscar usuario
     const user = await this.userRepository.findByIdOrFail(session.userId)
 
-    // Verificar que sea usuario INTERNAL
-    if (!user.isInternal) {
+    // Verificar que sea usuario INTERNAL cargando su perfil interno
+    const internalProfile =
+      await this.internalProfileRepository.findByUserId(user.id)
+    if (!internalProfile) {
       throw new BadRequestException(
         'El cambio de rol solo está disponible para usuarios internos',
       )
@@ -632,7 +635,6 @@ export class AuthService {
         username: internalUser.username,
         email: internalUser.email,
         fullName: internalUser.fullName,
-        type: UserType.INTERNAL,
         roles: internalUser.roles.map((r) => r.toString()),
         currentRole: newRole.toString(),
       },

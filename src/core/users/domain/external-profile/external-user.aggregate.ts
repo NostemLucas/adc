@@ -13,13 +13,6 @@ export class ExternalUser {
   private _profile: ExternalProfile
 
   private constructor(user: User, profile: ExternalProfile) {
-    // VALIDACIÓN CRÍTICA: Solo EXTERNAL
-    if (!user.isExternal) {
-      throw new InvalidUserTypeException(
-        'Solo usuarios de tipo EXTERNAL pueden tener perfil externo',
-      )
-    }
-
     // VALIDACIÓN: El userId del perfil debe coincidir con el id del usuario
     if (profile.userId !== user.id) {
       throw new InvalidUserTypeException(

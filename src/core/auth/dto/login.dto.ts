@@ -1,4 +1,10 @@
-import { IsNotEmpty, IsString, MinLength, IsOptional, IsEnum } from 'class-validator'
+import {
+  IsNotEmpty,
+  IsString,
+  MinLength,
+  IsOptional,
+  IsEnum,
+} from 'class-validator'
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger'
 import { Role } from '../domain/authorization'
 
@@ -22,7 +28,8 @@ export class LoginDto {
   password!: string
 
   @ApiPropertyOptional({
-    description: 'Rol preferido para iniciar sesión (opcional). Si no se especifica, se usará el primer rol del usuario.',
+    description:
+      'Rol preferido para iniciar sesión (opcional). Si no se especifica, se usará el primer rol del usuario.',
     enum: ['administrador', 'gerente', 'auditor', 'cliente'],
     example: 'administrador',
   })

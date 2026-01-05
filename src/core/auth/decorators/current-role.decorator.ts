@@ -1,32 +1,32 @@
-import { createParamDecorator, ExecutionContext, UnauthorizedException } from '@nestjs/common'
-import { JwtService } from '@nestjs/jwt'
+import { createParamDecorator, ExecutionContext } from '@nestjs/common'
+import { JwtPayload } from '../interfaces/jwt-payload.interface'
 
 /**
- * Extrae el currentRole del JWT token
+ * CurrentRole Decorator
+ *
+ * Extracts the currentRole from the authenticated user's JWT payload.
+ * Only available for internal users (external users don't have currentRole).
+ *
+ * @example
+ * ```typescript
+ * @Get('dashboard')
+ * async getDashboard(@CurrentRole() currentRole?: string) {
+ *   // currentRole only exists for internal users
+ *   if (currentRole) {
+ *     return this.dashboardService.getByRole(currentRole)
+ *   }
+ *   // External user, return client dashboard
+ *   return this.dashboardService.getClientDashboard()
+ * }
+ * ```
+ *
+ * @returns The current active role for internal users, undefined for external users
  */
 export const CurrentRole = createParamDecorator(
-  (data: unknown, ctx: ExecutionContext): string => {
+  (data: unknown, ctx: ExecutionContext): string | undefined => {
     const request = ctx.switchToHttp().getRequest()
-    const authHeader = request.headers.authorization
+    const user = request.user as JwtPayload
 
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      throw new UnauthorizedException('Token no encontrado')
-    }
-
-    const token = authHeader.substring(7)
-    const jwtService = new JwtService()
-
-    try {
-      // Decodificar sin verificar (ya fue verificado por el guard)
-      const payload = jwtService.decode(token) as any
-
-      if (!payload || !payload.currentRole) {
-        throw new UnauthorizedException('CurrentRole no encontrado en el token')
-      }
-
-      return payload.currentRole
-    } catch (error) {
-      throw new UnauthorizedException('Token inválido')
-    }
+    return user?.currentRole
   },
 )

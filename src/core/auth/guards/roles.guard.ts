@@ -5,14 +5,20 @@ import {
   ForbiddenException,
 } from '@nestjs/common'
 import { Reflector } from '@nestjs/core'
-import { JwtService } from '@nestjs/jwt'
 import { ROLES_KEY } from '../decorators/roles.decorator'
-import { User } from 'src/core/users/domain/user'
+import { JwtPayload } from '../interfaces/jwt-payload.interface'
 
+/**
+ * Roles Guard
+ *
+ * Protects routes based on required roles (for internal users only).
+ * Works in conjunction with @Roles() decorator.
+ *
+ * The guard checks if the authenticated user's currentRole matches
+ * one of the required roles.
+ */
 @Injectable()
 export class RolesGuard implements CanActivate {
-  private readonly jwtService = new JwtService()
-
   constructor(private reflector: Reflector) {}
 
   canActivate(context: ExecutionContext): boolean {
@@ -26,7 +32,7 @@ export class RolesGuard implements CanActivate {
     }
 
     const request = context.switchToHttp().getRequest()
-    const user = request.user as User
+    const user = request.user as JwtPayload
 
     if (!user) {
       throw new ForbiddenException(
@@ -34,15 +40,13 @@ export class RolesGuard implements CanActivate {
       )
     }
 
-    // Extraer currentRole del JWT token
-    const token = this.extractTokenFromHeader(request)
-    if (!token) {
-      throw new ForbiddenException('Token no encontrado')
-    }
+    // Get current active role from JWT payload
+    const currentRole = user.currentRole
 
-    const currentRole = this.extractCurrentRoleFromToken(token)
     if (!currentRole) {
-      throw new ForbiddenException('Rol activo no encontrado')
+      throw new ForbiddenException(
+        'Rol activo no encontrado. Este endpoint es solo para usuarios internos.',
+      )
     }
 
     const hasRole = requiredRoles.includes(currentRole)
@@ -54,22 +58,5 @@ export class RolesGuard implements CanActivate {
     }
 
     return true
-  }
-
-  private extractTokenFromHeader(request: any): string | null {
-    const authHeader = request.headers.authorization
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return null
-    }
-    return authHeader.substring(7)
-  }
-
-  private extractCurrentRoleFromToken(token: string): string | null {
-    try {
-      const payload = this.jwtService.decode(token) as any
-      return payload?.currentRole || null
-    } catch {
-      return null
-    }
   }
 }

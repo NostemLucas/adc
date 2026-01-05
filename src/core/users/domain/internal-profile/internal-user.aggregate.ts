@@ -14,13 +14,6 @@ export class InternalUser {
   private _profile: InternalProfile
 
   private constructor(user: User, profile: InternalProfile) {
-    // VALIDACIÓN CRÍTICA: Solo INTERNAL
-    if (!user.isInternal) {
-      throw new InvalidUserTypeException(
-        'Solo usuarios de tipo INTERNAL pueden tener perfil interno',
-      )
-    }
-
     // VALIDACIÓN: El userId del perfil debe coincidir con el id del usuario
     if (profile.userId !== user.id) {
       throw new InvalidUserTypeException(

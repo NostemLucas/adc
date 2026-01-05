@@ -75,20 +75,17 @@ export class NotificationsGateway
         throw new UnauthorizedException('Invalid user')
       }
 
-      // Load user with profile
+      // Load user with profile - try internal first
       let fullUser: InternalUser | ExternalUser
-      if (user.isInternal) {
-        const profile = await this.internalProfileRepository.findByUserId(user.id)
-        if (!profile) {
-          throw new UnauthorizedException('Profile not found')
-        }
-        fullUser = InternalUser.create(user, profile)
+      const internalProfile = await this.internalProfileRepository.findByUserId(user.id)
+      if (internalProfile) {
+        fullUser = InternalUser.create(user, internalProfile)
       } else {
-        const profile = await this.externalProfileRepository.findByUserId(user.id)
-        if (!profile) {
+        const externalProfile = await this.externalProfileRepository.findByUserId(user.id)
+        if (!externalProfile) {
           throw new UnauthorizedException('Profile not found')
         }
-        fullUser = ExternalUser.create(user, profile)
+        fullUser = ExternalUser.create(user, externalProfile)
       }
 
       // Store user in socket data

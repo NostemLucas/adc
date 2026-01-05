@@ -7,11 +7,6 @@ datasource db {
 }
 
 // ===== ENUMS =====
-enum UserType {
-  INTERNAL // Personal del sistema (administrador, gerente, auditor)
-  EXTERNAL // Usuarios de organizaciones (clientes)
-}
-
 enum UserStatus {
   ACTIVE
   INACTIVE
@@ -58,10 +53,7 @@ model User {
   failedLoginAttempts Int        @default(0) @map("failed_login_attempts")
   lockUntil           DateTime?  @map("lock_until")
 
-  // NUEVO: Tipo de usuario (INMUTABLE)
-  type UserType
-
-  // Perfiles especializados (solo uno existirá según el type)
+  // Perfiles especializados (uno u otro existirá para cada usuario)
   internalProfile InternalProfile?
   externalProfile ExternalProfile?
 

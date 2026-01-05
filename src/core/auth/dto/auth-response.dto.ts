@@ -26,7 +26,6 @@ export class LoginResponseDto {
       username: { type: 'string', example: 'johndoe' },
       email: { type: 'string', example: 'john.doe@example.com' },
       fullName: { type: 'string', example: 'John Doe' },
-      type: { type: 'string', example: 'internal', enum: ['internal', 'external'] },
       roles: {
         type: 'array',
         items: { type: 'string' },
@@ -42,7 +41,6 @@ export class LoginResponseDto {
     username: string
     email: string
     fullName: string
-    type: string
     roles?: string[]
     currentRole?: string
     organizationId?: string
